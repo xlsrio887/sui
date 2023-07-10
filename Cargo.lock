@@ -1190,9 +1190,9 @@ checksum = "b645a089122eccb6111b4f81cbc1a49f5900ac4666bb93ac027feaecf15607bf"
 
 [[package]]
 name = "bcs"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b06b4c1f053002b70e7084ac944c77d58d5d92b2110dbc5e852735e00ad3ccc"
+checksum = "4bd3ffe8b19a604421a5d461d4a70346223e535903fbc3067138bddbebddcf77"
 dependencies = [
  "serde",
  "thiserror",
@@ -2733,7 +2733,16 @@ version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca3aa72a6f96ea37bbc5aa912f6788242832f75369bdfdadcb0e38423f100059"
 dependencies = [
- "dirs-sys",
+ "dirs-sys 0.3.7",
+]
+
+[[package]]
+name = "dirs"
+version = "5.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44c45a9d03d6676652bcb5e724c7e988de1acad23a711b5217ab9cbecbec2225"
+dependencies = [
+ "dirs-sys 0.4.1",
 ]
 
 [[package]]
@@ -2755,6 +2764,18 @@ dependencies = [
  "libc",
  "redox_users",
  "winapi",
+]
+
+[[package]]
+name = "dirs-sys"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "520f05a5cbd335fae5a99ff7a6ab8627577660ee5cfd6a94a6a929b52ff0321c"
+dependencies = [
+ "libc",
+ "option-ext",
+ "redox_users",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -6629,6 +6650,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
+name = "option-ext"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
+
+[[package]]
 name = "os_str_bytes"
 version = "6.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8760,7 +8787,7 @@ version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da03fa3b94cc19e3ebfc88c4229c49d8f08cdbd1228870a45f0ffdf84988e14b"
 dependencies = [
- "dirs",
+ "dirs 4.0.0",
 ]
 
 [[package]]
@@ -9367,7 +9394,7 @@ dependencies = [
  "anyhow",
  "bcs",
  "csv",
- "dirs",
+ "dirs 4.0.0",
  "fastcrypto",
  "insta",
  "move-binary-format",
@@ -9699,7 +9726,7 @@ dependencies = [
  "bcs",
  "camino",
  "csv",
- "dirs",
+ "dirs 4.0.0",
  "fastcrypto",
  "insta",
  "move-binary-format",
@@ -10170,20 +10197,25 @@ dependencies = [
  "bcs",
  "chrono",
  "clap 3.2.23",
+ "dirs 5.0.1",
  "futures",
  "jsonpath_lib",
  "move-core-types",
  "mysten-metrics",
  "once_cell",
  "prometheus",
+ "rand 0.8.5",
  "reqwest",
  "serde",
  "serde_json",
  "serde_with",
+ "shared-crypto",
  "sui-config",
  "sui-json",
  "sui-json-rpc",
  "sui-json-rpc-types",
+ "sui-keys",
+ "sui-move-build",
  "sui-sdk",
  "sui-types",
  "tap",
@@ -10371,7 +10403,7 @@ dependencies = [
  "axum",
  "clap 3.2.23",
  "dashmap",
- "dirs",
+ "dirs 4.0.0",
  "eyre",
  "futures",
  "http",
@@ -10421,7 +10453,7 @@ dependencies = [
  "bcs",
  "clap 3.2.23",
  "colored",
- "dirs",
+ "dirs 4.0.0",
  "fastcrypto",
  "futures",
  "futures-core",
@@ -10669,7 +10701,7 @@ dependencies = [
  "bcs",
  "camino",
  "csv",
- "dirs",
+ "dirs 4.0.0",
  "fastcrypto",
  "insta",
  "move-binary-format",
@@ -12876,9 +12908,9 @@ dependencies = [
  "diffy",
  "digest 0.10.6",
  "digest 0.9.0",
- "dirs",
+ "dirs 4.0.0",
  "dirs-next",
- "dirs-sys",
+ "dirs-sys 0.3.7",
  "dirs-sys-next",
  "displaydoc",
  "dissimilar",
