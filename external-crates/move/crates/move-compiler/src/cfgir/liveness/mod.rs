@@ -93,7 +93,8 @@ fn command(state: &mut LivenessState, sp!(_, cmd_): &Command) {
         C::Return { exp: e, .. }
         | C::Abort(e)
         | C::IgnoreAndPop { exp: e, .. }
-        | C::JumpIf { cond: e, .. } => exp(state, e),
+        | C::JumpIf { cond: e, .. }
+        | C::VariantSwitch { subject: e, .. } => exp(state, e),
 
         C::Jump { .. } => (),
         C::Break(_) | C::Continue(_) => panic!("ICE break/continue not translated to jumps"),
@@ -112,6 +113,9 @@ fn lvalue(state: &mut LivenessState, sp!(_, l_): &LValue) {
             state.0.remove(v);
         }
         L::Unpack(_, _, fields) => fields.iter().for_each(|(_, l)| lvalue(state, l)),
+        L::UnpackVariant(_, _, _, _, _, fields) => {
+            fields.iter().for_each(|(_, l)| lvalue(state, l))
+        }
     }
 }
 
@@ -142,6 +146,7 @@ fn exp(state: &mut LivenessState, parent_e: &Exp) {
         }
 
         E::Pack(_, _, fields) => fields.iter().for_each(|(_, _, e)| exp(state, e)),
+        E::PackVariant(_, _, _, fields) => fields.iter().for_each(|(_, _, e)| exp(state, e)),
 
         E::Multiple(es) => es.iter().for_each(|e| exp(state, e)),
 
@@ -272,7 +277,8 @@ mod last_usage {
             C::Return { exp: e, .. }
             | C::Abort(e)
             | C::IgnoreAndPop { exp: e, .. }
-            | C::JumpIf { cond: e, .. } => exp(context, e),
+            | C::JumpIf { cond: e, .. }
+            | C::VariantSwitch { subject: e, .. } => exp(context, e),
 
             C::Jump { .. } => (),
             C::Break(_) | C::Continue(_) => panic!("ICE break/continue not translated to jumps"),
@@ -312,6 +318,9 @@ mod last_usage {
                 }
             }
             L::Unpack(_, _, fields) => fields.iter_mut().for_each(|(_, l)| lvalue(context, l)),
+            L::UnpackVariant(_, _, _, _, _, fields) => {
+                fields.iter_mut().for_each(|(_, l)| lvalue(context, l))
+            }
         }
     }
 
@@ -364,6 +373,11 @@ mod last_usage {
             }
 
             E::Pack(_, _, fields) => fields
+                .iter_mut()
+                .rev()
+                .for_each(|(_, _, e)| exp(context, e)),
+
+            E::PackVariant(_, _, _, fields) => fields
                 .iter_mut()
                 .rev()
                 .for_each(|(_, _, e)| exp(context, e)),

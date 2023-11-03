@@ -995,6 +995,9 @@ impl<'env, 'translator, 'module_translator> ExpTranslator<'env, 'translator, 'mo
                             let name = match &maccess.value {
                                 EA::ModuleAccess_::Name(n) => n,
                                 EA::ModuleAccess_::ModuleAccess(_, n) => n,
+                                EA::ModuleAccess_::Variant(..) => {
+                                    panic!("Variants are not supported by the move model.")
+                                }
                             };
                             // Define the local. Currently we mimic
                             // Rust/ML semantics here, allowing to shadow with each let,
@@ -1085,6 +1088,9 @@ impl<'env, 'translator, 'module_translator> ExpTranslator<'env, 'translator, 'mo
                 }
                 // If not found, treat as global var in this module.
                 self.parent.qualified_by_module(sym)
+            }
+            EA::ModuleAccess_::Variant(..) => {
+                panic!("Variants are not supported by the move model.")
             }
         };
         if let Some(entry) = self.parent.parent.const_table.get(&global_var_sym).cloned() {

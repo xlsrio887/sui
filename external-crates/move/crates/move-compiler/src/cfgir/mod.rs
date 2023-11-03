@@ -17,7 +17,7 @@ mod optimize;
 use crate::{
     expansion::ast::{AbilitySet, ModuleIdent},
     hlir::ast::{FunctionSignature, Label, SingleType, Var, Visibility},
-    parser::ast::StructName,
+    parser::ast::DatatypeName,
     shared::{unique_map::UniqueMap, CompilationEnv, Name},
 };
 use cfg::*;
@@ -27,7 +27,8 @@ use std::collections::BTreeSet;
 pub struct CFGContext<'a> {
     pub module: ModuleIdent,
     pub member: MemberName,
-    pub struct_declared_abilities: &'a UniqueMap<ModuleIdent, UniqueMap<StructName, AbilitySet>>,
+    pub datatype_declared_abilities:
+        &'a UniqueMap<ModuleIdent, UniqueMap<DatatypeName, AbilitySet>>,
     pub visibility: Visibility,
     pub signature: &'a FunctionSignature,
     pub locals: &'a UniqueMap<Var, SingleType>,

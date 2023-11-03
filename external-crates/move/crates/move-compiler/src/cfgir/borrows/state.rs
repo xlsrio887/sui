@@ -652,7 +652,8 @@ impl BorrowState {
     pub fn borrow_local(&mut self, loc: Loc, mut_: bool, local: &Var) -> (Diagnostics, Value) {
         assert!(
             !self.locals.get(local).unwrap().is_ref(),
-            "ICE borrow ref {:#?}. Should have been caught in typing",
+            "ICE borrow ref of {:?} at {:#?}. Should have been caught in typing",
+            local,
             loc
         );
         let new_id = self.declare_new_ref(loc, mut_);
@@ -782,6 +783,77 @@ impl BorrowState {
         (diags, Value::Ref(field_borrow_id))
     }
 
+    pub fn borrow_variant_fields(
+        &mut self,
+        loc: Loc,
+        mut_: bool,
+        rvalue: Value,
+        fields: &Vec<(Field, LValue)>,
+    ) -> (Diagnostics, Vec<Value>) {
+        let mut diags = Diagnostics::new();
+        let id = match rvalue {
+            Value::NonRef => {
+                assert!(
+                    self.prev_had_errors,
+                    "ICE borrow checking failed {:#?}",
+                    loc
+                );
+                return (
+                    Diagnostics::new(),
+                    fields.iter().map(|_| Value::NonRef).collect::<Vec<_>>(),
+                );
+            }
+            Value::Ref(id) => id,
+        };
+        let copy_parent = Some(id);
+        let fvs = fields
+            .iter()
+            .map(|(field, _)| {
+                let new_diags = if mut_ {
+                    let msg = || format!("Invalid mutable borrow at field '{}'.", field);
+                    let (full_borrows, _field_borrows) = self.borrows.borrowed_by(id);
+                    // Any field borrows will be factored out
+                    Self::borrow_error(
+                        &self.borrows,
+                        loc,
+                        &full_borrows,
+                        &BTreeMap::new(),
+                        ReferenceSafety::MutOwns,
+                        msg,
+                    )
+                    .into()
+                } else {
+                    let msg = || format!("Invalid immutable borrow at field '{}'.", field);
+                    self.readable(loc, ReferenceSafety::RefTrans, msg, id, Some(field))
+                };
+                diags.extend(new_diags);
+                let field_borrow_id = self.declare_new_ref_impl(loc, mut_, copy_parent);
+                self.add_field_borrow(loc, id, *field, field_borrow_id);
+                Value::Ref(field_borrow_id)
+            })
+            .collect::<Vec<_>>();
+        self.release(id);
+        (diags, fvs)
+    }
+
+    pub fn variant_switch(&mut self, loc: Loc, subject: Value) -> Diagnostics {
+        let id = match subject {
+            Value::NonRef => {
+                assert!(
+                    self.prev_had_errors,
+                    "ICE borrow checking failed {:#?}",
+                    loc
+                );
+                return Diagnostics::new();
+            }
+            Value::Ref(id) => id,
+        };
+        let msg = || "Invalid immutable borrow of match subject".to_string();
+        let diags = self.readable(loc, ReferenceSafety::RefTrans, msg, id, None);
+        self.release(id);
+        diags
+    }
+
     pub fn call(&mut self, loc: Loc, args: Values, return_ty: &Type) -> (Diagnostics, Values) {
         let mut diags = Diagnostics::new();
 
@@ -853,8 +925,22 @@ impl BorrowState {
             }
         }
         all_refs.remove(&Self::LOCAL_ROOT);
-        assert!(all_refs.is_empty());
-
+        if !all_refs.is_empty() {
+            for ref_ in all_refs {
+                println!("had ref: {:?}", ref_);
+            }
+            println!("borrow graph:");
+            self.borrows.display();
+            println!("locals:");
+            for (_, local_, value) in &self.locals {
+                println!("{} -> {:?}", local_, value);
+            }
+            println!("id map:");
+            for (key, value) in &id_map {
+                println!("{:?} -> {:?}", key, value);
+            }
+            panic!("Had some refs left over");
+        }
         self.locals
             .iter_mut()
             .for_each(|(_, _, v)| v.remap_refs(&id_map));

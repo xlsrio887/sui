@@ -14,7 +14,7 @@ use crate::{
         translate::{display_var, DisplayVar},
     },
     naming::ast::{self as N, TParam},
-    parser::ast::{Ability_, StructName},
+    parser::ast::{Ability_, DatatypeName},
     shared::{unique_map::UniqueMap, *},
 };
 use move_ir_types::location::*;
@@ -26,19 +26,22 @@ use std::collections::BTreeMap;
 //**************************************************************************************************
 
 struct LocalsSafety<'a> {
-    struct_declared_abilities: &'a UniqueMap<ModuleIdent, UniqueMap<StructName, AbilitySet>>,
+    datatype_declared_abilities: &'a UniqueMap<ModuleIdent, UniqueMap<DatatypeName, AbilitySet>>,
     local_types: &'a UniqueMap<Var, SingleType>,
     signature: &'a FunctionSignature,
 }
 
 impl<'a> LocalsSafety<'a> {
     fn new(
-        struct_declared_abilities: &'a UniqueMap<ModuleIdent, UniqueMap<StructName, AbilitySet>>,
+        datatype_declared_abilities: &'a UniqueMap<
+            ModuleIdent,
+            UniqueMap<DatatypeName, AbilitySet>,
+        >,
         local_types: &'a UniqueMap<Var, SingleType>,
         signature: &'a FunctionSignature,
     ) -> Self {
         Self {
-            struct_declared_abilities,
+            datatype_declared_abilities,
             local_types,
             signature,
         }
@@ -46,7 +49,7 @@ impl<'a> LocalsSafety<'a> {
 }
 
 struct Context<'a, 'b> {
-    struct_declared_abilities: &'a UniqueMap<ModuleIdent, UniqueMap<StructName, AbilitySet>>,
+    datatype_declared_abilities: &'a UniqueMap<ModuleIdent, UniqueMap<DatatypeName, AbilitySet>>,
     local_types: &'a UniqueMap<Var, SingleType>,
     local_states: &'b mut LocalStates,
     signature: &'a FunctionSignature,
@@ -55,11 +58,11 @@ struct Context<'a, 'b> {
 
 impl<'a, 'b> Context<'a, 'b> {
     fn new(locals_safety: &'a LocalsSafety, local_states: &'b mut LocalStates) -> Self {
-        let struct_declared_abilities = &locals_safety.struct_declared_abilities;
+        let datatype_declared_abilities = &locals_safety.datatype_declared_abilities;
         let local_types = &locals_safety.local_types;
         let signature = &locals_safety.signature;
         Self {
-            struct_declared_abilities,
+            datatype_declared_abilities,
             local_types,
             local_states,
             signature,
@@ -116,13 +119,13 @@ pub fn verify(
     cfg: &super::cfg::MutForwardCFG,
 ) -> BTreeMap<Label, LocalStates> {
     let super::CFGContext {
-        struct_declared_abilities,
+        datatype_declared_abilities,
         signature,
         locals,
         ..
     } = context;
     let initial_state = LocalStates::initial(&signature.parameters, locals);
-    let mut locals_safety = LocalsSafety::new(struct_declared_abilities, locals, signature);
+    let mut locals_safety = LocalsSafety::new(datatype_declared_abilities, locals, signature);
     let (final_state, ds) = locals_safety.analyze_function(cfg, initial_state);
     compilation_env.add_diags(ds);
     final_state
@@ -143,7 +146,10 @@ fn command(context: &mut Context, sp!(loc, cmd_): &Command) {
             exp(context, er);
             exp(context, el)
         }
-        C::Abort(e) | C::IgnoreAndPop { exp: e, .. } | C::JumpIf { cond: e, .. } => exp(context, e),
+        C::Abort(e)
+        | C::IgnoreAndPop { exp: e, .. }
+        | C::JumpIf { cond: e, .. }
+        | C::VariantSwitch { subject: e, .. } => exp(context, e),
 
         C::Return { exp: e, .. } => {
             exp(context, e);
@@ -243,6 +249,9 @@ fn lvalue(context: &mut Context, sp!(loc, l_): &LValue) {
             context.set_state(*v, LocalState::Available(*loc))
         }
         L::Unpack(_, _, fields) => fields.iter().for_each(|(_, l)| lvalue(context, l)),
+        L::UnpackVariant(_, _, _, _, _, fields) => {
+            fields.iter().for_each(|(_, l)| lvalue(context, l))
+        }
     }
 }
 
@@ -276,6 +285,8 @@ fn exp(context: &mut Context, parent_e: &Exp) {
         }
 
         E::Pack(_, _, fields) => fields.iter().for_each(|(_, _, e)| exp(context, e)),
+
+        E::PackVariant(_, _, _, fields) => fields.iter().for_each(|(_, _, e)| exp(context, e)),
 
         E::Multiple(es) => es.iter().for_each(|e| exp(context, e)),
 
@@ -369,13 +380,13 @@ fn add_drop_ability_tip(context: &Context, diag: &mut Diagnostic, st: SingleType
         }
         T::Apply(_, sp!(_, TN::ModuleType(m, s)), ty_args) => {
             let decl_loc = *context
-                .struct_declared_abilities
+                .datatype_declared_abilities
                 .get(m)
                 .unwrap()
                 .get_loc(s)
                 .unwrap();
             let declared_abilities = context
-                .struct_declared_abilities
+                .datatype_declared_abilities
                 .get(m)
                 .unwrap()
                 .get(s)

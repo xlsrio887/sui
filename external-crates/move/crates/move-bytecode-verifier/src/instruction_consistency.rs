@@ -206,6 +206,7 @@ impl<'a> InstructionConsistency<'a> {
         generic: bool,
     ) -> PartialVMResult<()> {
         let enum_def = self.resolver.enum_def_at(enum_def_index)?;
+        println!("checking enum def: {:?}\ngeneric: {}", enum_def, generic);
         self.check_type_op_(offset, enum_def.enum_handle, generic)
     }
 

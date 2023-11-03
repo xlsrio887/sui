@@ -12,7 +12,7 @@ use crate::{
     naming::ast::{
         self as N, BuiltinTypeName_, FunctionSignature, StructFields, Type, TypeName_, Type_, Var,
     },
-    parser::ast::{Ability_, FunctionName, Mutability, StructName},
+    parser::ast::{Ability_, DatatypeName, FunctionName, Mutability},
     shared::{
         known_attributes::{KnownAttribute, TestingAttribute},
         program_info::TypingProgramInfo,
@@ -54,7 +54,7 @@ pub struct Context<'a> {
     sui_transfer_ident: Option<ModuleIdent>,
     current_module: Option<ModuleIdent>,
     otw_name: Option<Symbol>,
-    one_time_witness: Option<Result<StructName, ()>>,
+    one_time_witness: Option<Result<DatatypeName, ()>>,
     in_test: bool,
 }
 
@@ -179,7 +179,7 @@ impl<'a> TypingVisitorContext for Context<'a> {
 // Structs
 //**************************************************************************************************
 
-fn struct_def(context: &mut Context, name: StructName, sdef: &N::StructDefinition) {
+fn struct_def(context: &mut Context, name: DatatypeName, sdef: &N::StructDefinition) {
     let N::StructDefinition {
         warning_filter: _,
         index: _,
@@ -229,7 +229,7 @@ fn struct_def(context: &mut Context, name: StructName, sdef: &N::StructDefinitio
     }
 }
 
-fn invalid_object_id_field_diag(key_loc: Loc, loc: Loc, name: StructName) -> Diagnostic {
+fn invalid_object_id_field_diag(key_loc: Loc, loc: Loc, name: DatatypeName) -> Diagnostic {
     const KEY_MSG: &str = "The 'key' ability is used to declare objects in Sui";
 
     let msg = format!(
@@ -439,7 +439,7 @@ fn init_signature(context: &mut Context, name: FunctionName, signature: &Functio
 // when trying to write an 'init' function.
 fn check_otw_type(
     context: &mut Context,
-    name: StructName,
+    name: DatatypeName,
     sdef: &N::StructDefinition,
     usage_loc: Option<Loc>,
 ) {
