@@ -134,6 +134,7 @@ use crate::checkpoints::CheckpointStore;
 use crate::consensus_adapter::ConsensusAdapter;
 use crate::epoch::committee_store::CommitteeStore;
 use crate::execution_driver::execution_process;
+use crate::in_mem_execution_cache::InMemoryCache;
 use crate::module_cache_metrics::ResolverMetrics;
 use crate::stake_aggregator::StakeAggregator;
 use crate::state_accumulator::{StateAccumulator, WrappedObject};
@@ -2170,7 +2171,8 @@ impl AuthorityState {
             indirect_objects_threshold,
             archive_readers,
         );
-        let input_loader = TransactionInputLoader::new(store.clone());
+        let execution_cache = Arc::new(InMemoryCache::new(store.clone()));
+        let input_loader = TransactionInputLoader::new(execution_cache.clone());
         let output_writer = TransactionOutputWriter::new(store.clone());
         let state = Arc::new(AuthorityState {
             name,

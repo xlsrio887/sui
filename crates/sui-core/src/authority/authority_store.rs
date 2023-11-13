@@ -405,7 +405,7 @@ impl AuthorityStore {
         object_id: &ObjectID,
         version: &SequenceNumber,
         epoch_id: EpochId,
-    ) -> Result<Option<TransactionDigest>, TypedStoreError> {
+    ) -> SuiResult<Option<TransactionDigest>> {
         let object_key = (epoch_id, ObjectKey(*object_id, *version));
 
         match self

@@ -30,7 +30,6 @@ use sui_types::storage::{ReadStore, WriteStore};
 use tracing::debug;
 
 pub mod blob;
-pub mod execution_cache;
 pub mod http_key_value_store;
 pub mod key_value_store;
 pub mod key_value_store_metrics;

@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_store::AuthorityStore;
+use crate::in_mem_execution_cache::ExecutionCacheRead;
 use itertools::izip;
 use once_cell::unsync::OnceCell;
 use std::collections::HashMap;
@@ -11,7 +11,7 @@ use sui_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     error::{SuiError, SuiResult, UserInputError},
     fp_ensure,
-    storage::{BackingPackageStore, GetSharedLocks, ObjectKey, ObjectStore},
+    storage::{GetSharedLocks, ObjectKey},
     transaction::{
         InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
         ReceivingObjectReadResult, ReceivingObjectReadResultKind, ReceivingObjects,
@@ -20,12 +20,12 @@ use sui_types::{
 use tracing::instrument;
 
 pub(crate) struct TransactionInputLoader {
-    store: Arc<AuthorityStore>,
+    cache: Arc<dyn ExecutionCacheRead>,
 }
 
 impl TransactionInputLoader {
-    pub fn new(store: Arc<AuthorityStore>) -> Self {
-        Self { store }
+    pub fn new(cache: Arc<dyn ExecutionCacheRead>) -> Self {
+        Self { cache }
     }
 }
 
@@ -62,7 +62,7 @@ impl TransactionInputLoader {
             match kind {
                 // Packages are loaded one at a time via the cache
                 InputObjectKind::MovePackage(id) => {
-                    let Some(package) = self.store.get_package_object(id)?.map(|o| o.into()) else {
+                    let Some(package) = self.cache.get_package_object(id)?.map(|o| o.into()) else {
                         return Err(SuiError::from(kind.object_not_found_error()));
                     };
                     input_results[i] = Some(ObjectReadResult {
@@ -70,13 +70,13 @@ impl TransactionInputLoader {
                         object: ObjectReadResultKind::Object(package),
                     });
                 }
-                InputObjectKind::SharedMoveObject { id, .. } => match self.store.get_object(id)? {
+                InputObjectKind::SharedMoveObject { id, .. } => match self.cache.get_object(id)? {
                     Some(object) => {
                         input_results[i] = Some(ObjectReadResult::new(*kind, object.into()))
                     }
                     None => {
                         if let Some((version, digest)) = self
-                            .store
+                            .cache
                             .get_last_shared_object_deletion_info(id, epoch_id)?
                         {
                             input_results[i] = Some(ObjectReadResult {
@@ -95,10 +95,8 @@ impl TransactionInputLoader {
             }
         }
 
-        let objects = self
-            .store
-            .multi_get_object_with_more_accurate_error_return(&object_refs)?;
-        assert_eq!(objects.len(), object_refs.len());
+        let objects = self.cache.multi_get_object_by_objref(&object_refs)?;
+        assert_eq!(objects.len(), object_keys.len());
         for (index, object) in fetch_indices.into_iter().zip(objects.into_iter()) {
             input_results[index] = Some(ObjectReadResult {
                 input_object_kind: input_object_kinds[index],
@@ -204,7 +202,7 @@ impl TransactionInputLoader {
         for (i, input) in input_object_kinds.iter().enumerate() {
             match input {
                 InputObjectKind::MovePackage(id) => {
-                    let package = self.store.get_package_object(id)?.unwrap_or_else(|| {
+                    let package = self.cache.get_package_object(id)?.unwrap_or_else(|| {
                         panic!(
                             "Executable transaction {:?} depends on non-existent package {:?}",
                             tx_digest, id
@@ -245,7 +243,7 @@ impl TransactionInputLoader {
             }
         }
 
-        let objects = self.store.multi_get_object_by_key(&object_keys)?;
+        let objects = self.cache.multi_get_object_by_key(&object_keys)?;
 
         assert!(objects.len() == object_keys.len() && objects.len() == fetches.len());
 
@@ -262,7 +260,7 @@ impl TransactionInputLoader {
                 (None, InputObjectKind::SharedMoveObject { id, .. }) => {
                     // Check if the object was deleted by a concurrently certified tx
                     let version = key.1;
-                    if let Some(dependency) = self.store.get_deleted_shared_object_previous_tx_digest(id, &version, epoch_id)? {
+                    if let Some(dependency) = self.cache.get_deleted_shared_object_previous_tx_digest(id, &version, epoch_id)? {
                         ObjectReadResult {
                             input_object_kind: *input,
                             object: ObjectReadResultKind::DeletedSharedObject(version, dependency),
@@ -305,14 +303,13 @@ impl TransactionInputLoader {
         let mut results = Vec::with_capacity(input_object_kinds.len());
         for kind in input_object_kinds {
             let obj = match kind {
-                InputObjectKind::MovePackage(id) => self
-                    .store
-                    .get_package_object(id)?
-                    .map(|o| o.object().clone()),
+                InputObjectKind::MovePackage(id) => {
+                    self.cache.get_package_object(id)?.map(|o| Arc::from(o))
+                }
 
-                InputObjectKind::SharedMoveObject { id, .. } => self.store.get_object(id)?,
+                InputObjectKind::SharedMoveObject { id, .. } => self.cache.get_object(id)?,
                 InputObjectKind::ImmOrOwnedMoveObject(objref) => {
-                    self.store.get_object_by_key(&objref.0, objref.1)?
+                    self.cache.get_object_by_key(&objref.0, objref.1)?
                 }
             }
             .ok_or_else(|| SuiError::from(kind.object_not_found_error()))?;
@@ -335,7 +332,7 @@ impl TransactionInputLoader {
             let (object_id, version, _) = objref;
 
             if self
-                .store
+                .cache
                 .have_received_object_at_version(object_id, *version, epoch_id)?
             {
                 receiving_results.push(ReceivingObjectReadResult::new(
@@ -345,7 +342,7 @@ impl TransactionInputLoader {
                 continue;
             }
 
-            let Some(object) = self.store.get_object(object_id)? else {
+            let Some(object) = self.cache.get_object(object_id)? else {
                 return Err(UserInputError::ObjectNotFound {
                     object_id: *object_id,
                     version: Some(*version),

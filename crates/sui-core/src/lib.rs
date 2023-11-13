@@ -18,6 +18,7 @@ pub mod consensus_validator;
 pub mod db_checkpoint_handler;
 pub mod epoch;
 mod execution_driver;
+mod in_mem_execution_cache;
 pub mod metrics;
 pub mod module_cache_metrics;
 pub mod mysticeti_adapter;
