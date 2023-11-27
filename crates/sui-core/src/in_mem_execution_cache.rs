@@ -7,30 +7,26 @@ use crate::transaction_output_writer::TransactionOutputs;
 use dashmap::DashMap;
 use moka::sync::Cache as MokaCache;
 use std::collections::BTreeMap;
-use std::sync::Arc;
 use sui_types::base_types::{EpochId, ObjectID, SequenceNumber};
 use sui_types::digests::{TransactionDigest, TransactionEffectsDigest};
 use sui_types::effects::TransactionEffects;
 use sui_types::error::{SuiError, SuiResult, UserInputError};
 use sui_types::object::Object;
-use sui_types::storage::{MarkerValue, ObjectKey, ObjectStore, PackageObjectArc};
+use sui_types::storage::{MarkerValue, ObjectKey, ObjectStore, PackageObject};
 
 pub(crate) trait ExecutionCacheRead: Send + Sync {
-    fn get_package_object(&self, id: &ObjectID) -> SuiResult<Option<PackageObjectArc>>;
+    fn get_package_object(&self, id: &ObjectID) -> SuiResult<Option<PackageObject>>;
     fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]);
 
-    fn get_object(&self, id: &ObjectID) -> SuiResult<Option<Arc<Object>>>;
+    fn get_object(&self, id: &ObjectID) -> SuiResult<Option<Object>>;
 
     fn get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
-    ) -> SuiResult<Option<Arc<Object>>>;
+    ) -> SuiResult<Option<Object>>;
 
-    fn multi_get_object_by_key(
-        &self,
-        object_keys: &[ObjectKey],
-    ) -> SuiResult<Vec<Option<Arc<Object>>>>;
+    fn multi_get_object_by_key(&self, object_keys: &[ObjectKey]) -> SuiResult<Vec<Option<Object>>>;
 
     /// If the shared object was deleted, return deletion info for the current live version
     fn get_last_shared_object_deletion_info(
@@ -62,18 +58,18 @@ pub(crate) trait ExecutionCacheWrite: Send + Sync {
 pub(crate) struct InMemoryCache {
     // Objects are not cached using an LRU because we manage cache evictions manually due to sui
     // semantics.
-    objects: DashMap<ObjectID, BTreeMap<SequenceNumber, Arc<Object>>>,
+    objects: DashMap<ObjectID, BTreeMap<SequenceNumber, Object>>,
 
     // packages are cache separately from objects because they are immutable and can be used by any
     // number of transactions
-    packages: MokaCache<ObjectID, PackageObjectArc>,
+    packages: MokaCache<ObjectID, PackageObject>,
 
     // Markers for received objects and deleted shared objects. This cache can be invalidated at
     // any time, but if there is an entry, it must contain the most recent marker for the object.
     markers: MokaCache<ObjectID, Arc<BTreeMap<SequenceNumber, MarkerValue>>>,
 
     // TODO: use concurrent LRU?
-    transaction_objects: DashMap<TransactionDigest, Vec<Arc<Object>>>,
+    transaction_objects: DashMap<TransactionDigest, Vec<Object>>,
 
     transaction_effects: DashMap<TransactionEffectsDigest, TransactionEffects>,
 
@@ -110,7 +106,7 @@ fn get_last<K, V>(map: &BTreeMap<K, V>) -> (&K, &V) {
 }
 
 impl ExecutionCacheRead for InMemoryCache {
-    fn get_package_object(&self, package_id: &ObjectID) -> SuiResult<Option<PackageObjectArc>> {
+    fn get_package_object(&self, package_id: &ObjectID) -> SuiResult<Option<PackageObject>> {
         if let Some(p) = self.packages.get(package_id) {
             #[cfg(debug_assertions)]
             {
@@ -126,7 +122,7 @@ impl ExecutionCacheRead for InMemoryCache {
 
         if let Some(p) = self.store.get_object(package_id)? {
             if p.is_package() {
-                let p = PackageObjectArc::new(p);
+                let p = PackageObject::new(p);
                 self.packages.insert(*package_id, p.clone());
                 Ok(Some(p))
             } else {
@@ -149,14 +145,14 @@ impl ExecutionCacheRead for InMemoryCache {
                 .expect("Failed to update system packages")
             {
                 assert!(p.is_package());
-                self.packages.insert(*package_id, PackageObjectArc::new(p));
+                self.packages.insert(*package_id, PackageObject::new(p));
             }
             // It's possible that a package is not found if it's newly added system package ID
             // that hasn't got created yet. This should be very very rare though.
         }
     }
 
-    fn get_object(&self, id: &ObjectID) -> SuiResult<Option<Arc<Object>>> {
+    fn get_object(&self, id: &ObjectID) -> SuiResult<Option<Object>> {
         if let Some(objects) = self.objects.get(&id) {
             return Ok(Some(get_last(&*objects).1.clone()));
         }
@@ -171,7 +167,7 @@ impl ExecutionCacheRead for InMemoryCache {
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
-    ) -> SuiResult<Option<Arc<Object>>> {
+    ) -> SuiResult<Option<Object>> {
         if let Some(objects) = self.objects.get(object_id) {
             if let Some(object) = objects.get(&version) {
                 return Ok(Some(object.clone()));
@@ -189,7 +185,7 @@ impl ExecutionCacheRead for InMemoryCache {
     fn multi_get_object_by_key(
         &self,
         object_keys: &[ObjectKey],
-    ) -> Result<Vec<Option<Arc<Object>>>, SuiError> {
+    ) -> Result<Vec<Option<Object>>, SuiError> {
         let mut results = vec![None; object_keys.len()];
         let mut fallback_keys = Vec::with_capacity(object_keys.len());
         let mut fetch_indices = Vec::with_capacity(object_keys.len());

@@ -12,7 +12,7 @@ use sui_types::{
 /// possible result of calling ExecutionCache::notify_read_objects_for_execution on a shared object
 /// is that ObjectReadResult::Deleted is returned.
 pub enum ObjectReadResult {
-    Object(Arc<Object>),
+    Object(Object),
     Deleted,
 }
 
@@ -31,7 +31,7 @@ pub trait ExecutionCache {
         tx_digest: &TransactionDigest,
         objects: &[InputObjectKind],
         timeout: Duration,
-    ) -> SuiResult<Vec<Arc<Object>>>;
+    ) -> SuiResult<Vec<Object>>;
 
     /// Attempt to acquire locks on the mutable_input_objects for the transaction.
     /// This must not be called until after ownership checks have passed.
@@ -86,7 +86,7 @@ pub trait ExecutionCache {
         tx_digest: &TransactionDigest,
         object: &ObjectID,
         version_bound: SequenceNumber,
-    ) -> SuiResult<Arc<Object>>;
+    ) -> SuiResult<Object>;
 
     /// Advise the cache that the specified objects may be used soon.
     /// The intended use case is to prefetch owned object inputs of shared-object transactions as
