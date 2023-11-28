@@ -6,11 +6,14 @@ use crate::transaction_output_writer::TransactionOutputs;
 
 use dashmap::DashMap;
 use moka::sync::Cache as MokaCache;
+use parking_lot::Mutex;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use sui_types::base_types::{EpochId, ObjectID, SequenceNumber};
 use sui_types::digests::{TransactionDigest, TransactionEffectsDigest};
 use sui_types::effects::TransactionEffects;
 use sui_types::error::{SuiError, SuiResult, UserInputError};
+use sui_types::message_envelope::Message;
 use sui_types::object::Object;
 use sui_types::storage::{MarkerValue, ObjectKey, ObjectStore, PackageObject};
 
@@ -66,14 +69,21 @@ pub(crate) struct InMemoryCache {
 
     // Markers for received objects and deleted shared objects. This cache can be invalidated at
     // any time, but if there is an entry, it must contain the most recent marker for the object.
-    markers: MokaCache<ObjectID, Arc<BTreeMap<SequenceNumber, MarkerValue>>>,
+    // Note that MokaCache can only return items by value, so we store the map as an Arc<Mutex>.
+    // (There should be no contention on the inner mutex, it is used only for interior mutability.)
+    markers: MokaCache<ObjectID, Arc<Mutex<BTreeMap<SequenceNumber, MarkerValue>>>>,
 
-    // TODO: use concurrent LRU?
-    transaction_objects: DashMap<TransactionDigest, Vec<Object>>,
+    // Objects that were read at transaction signing time - allows us to access them again at
+    // execution time with a single lock / hash lookup
+    transaction_objects: MokaCache<TransactionDigest, Vec<Object>>,
 
     transaction_effects: DashMap<TransactionEffectsDigest, TransactionEffects>,
 
     executed_effects_digests: DashMap<TransactionDigest, TransactionEffectsDigest>,
+
+    // Transaction outputs that have not yet been written to the DB. Items are removed from this
+    // table as they are flushed to the db.
+    pending_transaction_writes: DashMap<TransactionDigest, TransactionOutputs>,
 
     store: Arc<AuthorityStore>,
 }
@@ -85,19 +95,31 @@ impl InMemoryCache {
             .initial_capacity(10000)
             .build();
         let markers = MokaCache::builder()
-            .max_capacity(1000)
-            .initial_capacity(1000)
+            .max_capacity(10000)
+            .initial_capacity(10000)
+            .build();
+        let transaction_objects = MokaCache::builder()
+            .max_capacity(10000)
+            .initial_capacity(10000)
             .build();
 
         Self {
             objects: DashMap::new(),
             packages,
             markers,
-            transaction_objects: DashMap::new(),
+            transaction_objects,
             transaction_effects: DashMap::new(),
             executed_effects_digests: DashMap::new(),
+            pending_transaction_writes: DashMap::new(),
             store,
         }
+    }
+
+    fn insert_object(&self, object_id: &ObjectID, object: &Object) {
+        self.objects
+            .entry(*object_id)
+            .or_default()
+            .insert(object.version(), object.clone());
     }
 }
 
@@ -141,7 +163,7 @@ impl ExecutionCacheRead for InMemoryCache {
         for package_id in system_package_ids {
             if let Some(p) = self
                 .store
-                .get_object(&package_id)
+                .get_object(package_id)
                 .expect("Failed to update system packages")
             {
                 assert!(p.is_package());
@@ -153,14 +175,14 @@ impl ExecutionCacheRead for InMemoryCache {
     }
 
     fn get_object(&self, id: &ObjectID) -> SuiResult<Option<Object>> {
-        if let Some(objects) = self.objects.get(&id) {
+        if let Some(objects) = self.objects.get(id) {
             return Ok(Some(get_last(&*objects).1.clone()));
         }
 
         // We don't insert objects into the cache because they are usually only
         // read once.
         // TODO: we might want to cache immutable reads (RO shared objects and immutable objects)
-        Ok(self.store.get_object(id)?.map(|o| o.into()))
+        self.store.get_object(id)
     }
 
     fn get_object_by_key(
@@ -176,10 +198,7 @@ impl ExecutionCacheRead for InMemoryCache {
 
         // We don't insert objects into the cache because they are usually only
         // read once.
-        Ok(self
-            .store
-            .get_object_by_key(object_id, version)?
-            .map(|o| o.into()))
+        self.store.get_object_by_key(object_id, version)
     }
 
     fn multi_get_object_by_key(
@@ -194,7 +213,7 @@ impl ExecutionCacheRead for InMemoryCache {
             if let Some(object) = self.get_object_by_key(&key.0, key.1)? {
                 results[i] = Some(object);
             } else {
-                fallback_keys.push(key.clone());
+                fallback_keys.push(*key);
                 fetch_indices.push(i);
             }
         }
@@ -204,7 +223,7 @@ impl ExecutionCacheRead for InMemoryCache {
         assert_eq!(store_results.len(), fallback_keys.len());
 
         for (i, result) in fetch_indices.into_iter().zip(store_results.into_iter()) {
-            results[i] = result.map(|o| o.into());
+            results[i] = result;
         }
 
         Ok(results)
@@ -217,7 +236,7 @@ impl ExecutionCacheRead for InMemoryCache {
         epoch_id: EpochId,
     ) -> SuiResult<Option<(SequenceNumber, TransactionDigest)>> {
         if let Some(markers) = self.markers.get(object_id) {
-            if let (version, MarkerValue::SharedDeleted(digest)) = get_last(&*markers) {
+            if let (version, MarkerValue::SharedDeleted(digest)) = get_last(&*markers.lock()) {
                 return Ok(Some((*version, *digest)));
             }
         }
@@ -235,7 +254,7 @@ impl ExecutionCacheRead for InMemoryCache {
         epoch_id: EpochId,
     ) -> SuiResult<Option<TransactionDigest>> {
         if let Some(markers) = self.markers.get(object_id) {
-            if let Some(MarkerValue::SharedDeleted(digest)) = markers.get(version) {
+            if let Some(MarkerValue::SharedDeleted(digest)) = markers.lock().get(version) {
                 return Ok(Some(*digest));
             }
         }
@@ -251,7 +270,7 @@ impl ExecutionCacheRead for InMemoryCache {
         epoch_id: EpochId,
     ) -> SuiResult<bool> {
         if let Some(markers) = self.markers.get(object_id) {
-            if let Some(MarkerValue::Received) = markers.get(&version) {
+            if let Some(MarkerValue::Received) = markers.lock().get(&version) {
                 return Ok(true);
             }
         }
@@ -262,7 +281,53 @@ impl ExecutionCacheRead for InMemoryCache {
 }
 
 impl ExecutionCacheWrite for InMemoryCache {
-    fn update_state(&self, epoch_id: EpochId, tx_outputs: TransactionOutputs) -> SuiResult {
-        todo!()
+    fn update_state(&self, _epoch_id: EpochId, tx_outputs: TransactionOutputs) -> SuiResult {
+        let TransactionOutputs {
+            transaction,
+            effects,
+            markers,
+            written,
+            ..
+        } = &tx_outputs;
+
+        // Update all marekrs
+        for (object_key, marker_value) in markers.iter() {
+            self.markers
+                .entry_by_ref(&object_key.0)
+                .or_insert_with(|| Arc::new(Mutex::new(BTreeMap::new())))
+                .value()
+                .lock()
+                .insert(object_key.1, *marker_value);
+        }
+
+        // Write children before parents to ensure that readers do not observe a parent object
+        // before its most recent children are visible.
+        for (object_id, object) in written.iter() {
+            if object.is_child_object() {
+                self.insert_object(object_id, object);
+            }
+        }
+        for (object_id, object) in written.iter() {
+            if !object.is_child_object() {
+                self.insert_object(object_id, object);
+                if object.is_package() {
+                    self.packages
+                        .insert(*object_id, PackageObject::new(object.clone()));
+                }
+            }
+        }
+
+        let effects_digest = effects.digest();
+
+        self.transaction_effects
+            .insert(effects_digest, effects.clone());
+
+        self.executed_effects_digests
+            .insert(*transaction.digest(), effects_digest);
+
+        self.pending_transaction_writes
+            .insert(*transaction.digest(), tx_outputs);
+
+        Ok(())
     }
 }

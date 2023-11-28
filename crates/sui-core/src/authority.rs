@@ -2173,7 +2173,7 @@ impl AuthorityState {
         );
         let execution_cache = Arc::new(InMemoryCache::new(store.clone()));
         let input_loader = TransactionInputLoader::new(execution_cache.clone());
-        let output_writer = TransactionOutputWriter::new(store.clone());
+        let output_writer = TransactionOutputWriter::new(execution_cache.clone());
         let state = Arc::new(AuthorityState {
             name,
             secret,

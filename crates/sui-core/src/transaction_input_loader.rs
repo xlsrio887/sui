@@ -303,9 +303,10 @@ impl TransactionInputLoader {
         let mut results = Vec::with_capacity(input_object_kinds.len());
         for kind in input_object_kinds {
             let obj = match kind {
-                InputObjectKind::MovePackage(id) => {
-                    self.cache.get_package_object(id)?.map(|o| Arc::from(o))
-                }
+                InputObjectKind::MovePackage(id) => self
+                    .cache
+                    .get_package_object(id)?
+                    .map(|o| o.object().clone()),
 
                 InputObjectKind::SharedMoveObject { id, .. } => self.cache.get_object(id)?,
                 InputObjectKind::ImmOrOwnedMoveObject(objref) => {

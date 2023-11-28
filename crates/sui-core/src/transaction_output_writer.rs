@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::AuthorityStore;
+use crate::in_mem_execution_cache::ExecutionCacheWrite;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use sui_types::base_types::EpochId;
@@ -26,12 +26,12 @@ pub(crate) struct TransactionOutputs {
 }
 
 pub(crate) struct TransactionOutputWriter {
-    store: Arc<AuthorityStore>,
+    cache: Arc<dyn ExecutionCacheWrite>,
 }
 
 impl TransactionOutputWriter {
-    pub fn new(store: Arc<AuthorityStore>) -> Self {
-        Self { store }
+    pub fn new(cache: Arc<dyn ExecutionCacheWrite>) -> Self {
+        Self { cache }
     }
 
     /// Write the output of a transaction.
@@ -63,12 +63,10 @@ impl TransactionOutputWriter {
         effects: TransactionEffects,
         inner_temporary_store: InnerTemporaryStore,
     ) -> SuiResult {
-        self.store
-            .update_state(
-                epoch_id,
-                Self::build_transaction_outputs(transaction, effects, inner_temporary_store),
-            )
-            .await
+        self.cache.update_state(
+            epoch_id,
+            Self::build_transaction_outputs(transaction, effects, inner_temporary_store),
+        )
     }
 }
 
