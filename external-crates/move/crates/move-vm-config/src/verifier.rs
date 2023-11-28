@@ -49,7 +49,7 @@ impl Default for VerifierConfig {
             // Max size set to 10000 to restrict number of pushes in one function
             // max_push_size: Some(10000),
             // max_dependency_depth: Some(100),
-            // max_struct_definitions: Some(200),
+            // max_data_definitions: Some(200),
             // max_fields_in_struct: Some(30),
             // max_function_definitions: Some(1000),
             max_back_edges_per_function: None,
