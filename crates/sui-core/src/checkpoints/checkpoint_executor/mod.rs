@@ -55,7 +55,10 @@ use crate::authority::AuthorityStore;
 use crate::checkpoints::checkpoint_executor::data_ingestion_handler::store_checkpoint_locally;
 use crate::state_accumulator::StateAccumulator;
 use crate::transaction_manager::TransactionManager;
-use crate::{authority::EffectsNotifyRead, checkpoints::CheckpointStore};
+use crate::{
+    authority::EffectsNotifyRead, checkpoints::CheckpointStore,
+    in_mem_execution_cache::ExecutionCacheRead,
+};
 
 use self::metrics::CheckpointExecutorMetrics;
 
@@ -73,6 +76,7 @@ pub struct CheckpointExecutor {
     mailbox: broadcast::Receiver<VerifiedCheckpoint>,
     checkpoint_store: Arc<CheckpointStore>,
     authority_store: Arc<AuthorityStore>,
+    execution_read: Arc<dyn ExecutionCacheRead>,
     tx_manager: Arc<TransactionManager>,
     accumulator: Arc<StateAccumulator>,
     config: CheckpointExecutorConfig,
@@ -84,6 +88,7 @@ impl CheckpointExecutor {
         mailbox: broadcast::Receiver<VerifiedCheckpoint>,
         checkpoint_store: Arc<CheckpointStore>,
         authority_store: Arc<AuthorityStore>,
+        execution_read: Arc<dyn ExecutionCacheRead>,
         tx_manager: Arc<TransactionManager>,
         accumulator: Arc<StateAccumulator>,
         config: CheckpointExecutorConfig,
@@ -93,6 +98,7 @@ impl CheckpointExecutor {
             mailbox,
             checkpoint_store,
             authority_store,
+            execution_read,
             tx_manager,
             accumulator,
             config,
@@ -104,6 +110,7 @@ impl CheckpointExecutor {
         mailbox: broadcast::Receiver<VerifiedCheckpoint>,
         checkpoint_store: Arc<CheckpointStore>,
         authority_store: Arc<AuthorityStore>,
+        execution_read: Arc<dyn ExecutionCacheRead>,
         tx_manager: Arc<TransactionManager>,
         accumulator: Arc<StateAccumulator>,
     ) -> Self {
@@ -111,6 +118,7 @@ impl CheckpointExecutor {
             mailbox,
             checkpoint_store,
             authority_store,
+            execution_read,
             tx_manager,
             accumulator,
             config: Default::default(),

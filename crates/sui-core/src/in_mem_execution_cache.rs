@@ -5,7 +5,9 @@ use crate::authority::AuthorityStore;
 use crate::transaction_output_writer::TransactionOutputs;
 
 use dashmap::DashMap;
+use futures::future::BoxFuture;
 use moka::sync::Cache as MokaCache;
+use mysten_common::sync::notify_read::NotifyRead;
 use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -52,6 +54,11 @@ pub(crate) trait ExecutionCacheRead: Send + Sync {
         version: SequenceNumber,
         epoch_id: EpochId,
     ) -> SuiResult<bool>;
+
+    fn notify_read_executed_effects_digests(
+        &self,
+        digests: Vec<TransactionDigest>,
+    ) -> BoxFuture<'_, SuiResult<Vec<TransactionEffectsDigest>>>;
 }
 
 pub(crate) trait ExecutionCacheWrite: Send + Sync {
@@ -85,6 +92,8 @@ pub(crate) struct InMemoryCache {
     // table as they are flushed to the db.
     pending_transaction_writes: DashMap<TransactionDigest, TransactionOutputs>,
 
+    executed_effects_digests_notify_read: NotifyRead<TransactionDigest, TransactionEffectsDigest>,
+
     store: Arc<AuthorityStore>,
 }
 
@@ -111,6 +120,7 @@ impl InMemoryCache {
             transaction_effects: DashMap::new(),
             executed_effects_digests: DashMap::new(),
             pending_transaction_writes: DashMap::new(),
+            executed_effects_digests_notify_read: NotifyRead::new(),
             store,
         }
     }
@@ -277,6 +287,16 @@ impl ExecutionCacheRead for InMemoryCache {
 
         self.store
             .have_received_object_at_version(object_id, version, epoch_id)
+    }
+
+    fn notify_read_executed_effects_digests(
+        &self,
+        digests: Vec<TransactionDigest>,
+    ) -> BoxFuture<'_, SuiResult<Vec<TransactionEffectsDigest>>> {
+        async move {
+            todo!();
+        }
+        .boxed()
     }
 }
 
