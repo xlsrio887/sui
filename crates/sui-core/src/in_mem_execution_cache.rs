@@ -5,7 +5,7 @@ use crate::authority::AuthorityStore;
 use crate::transaction_output_writer::TransactionOutputs;
 
 use dashmap::DashMap;
-use futures::future::BoxFuture;
+use futures::{future::BoxFuture, FutureExt};
 use moka::sync::Cache as MokaCache;
 use mysten_common::sync::notify_read::NotifyRead;
 use parking_lot::Mutex;
