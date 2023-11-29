@@ -1340,8 +1340,7 @@ impl SuiNode {
         let mut checkpoint_executor = CheckpointExecutor::new(
             self.state_sync.subscribe_to_synced_checkpoints(),
             self.checkpoint_store.clone(),
-            self.state.database.clone(),
-            self.state.transaction_manager().clone(),
+            self.state.clone(),
             self.accumulator.clone(),
             self.config.checkpoint_executor_config.clone(),
             &self.registry_service.default_registry(),

@@ -18,8 +18,10 @@ use sui_types::error::{SuiError, SuiResult, UserInputError};
 use sui_types::message_envelope::Message;
 use sui_types::object::Object;
 use sui_types::storage::{MarkerValue, ObjectKey, ObjectStore, PackageObject};
+use sui_types::transaction::VerifiedTransaction;
+use typed_store::Map;
 
-pub(crate) trait ExecutionCacheRead: Send + Sync {
+pub trait ExecutionCacheRead: Send + Sync {
     fn get_package_object(&self, id: &ObjectID) -> SuiResult<Option<PackageObject>>;
     fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]);
 
@@ -55,13 +57,57 @@ pub(crate) trait ExecutionCacheRead: Send + Sync {
         epoch_id: EpochId,
     ) -> SuiResult<bool>;
 
+    fn multi_get_transaction_blocks(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> SuiResult<Vec<Option<Arc<VerifiedTransaction>>>>;
+
+    fn get_transaction_block(
+        &self,
+        digest: &TransactionDigest,
+    ) -> SuiResult<Option<Arc<VerifiedTransaction>>> {
+        self.multi_get_transaction_blocks(vec![*digest])
+            .map(|mut blocks| blocks.pop())
+    }
+
+    fn multi_get_executed_effects_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> SuiResult<Vec<TransactionEffectsDigest>>;
+
+    fn multi_get_executed_effects(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> SuiResult<Vec<TransactionEffects>>;
+
+    fn get_executed_effects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> SuiResult<Option<TransactionEffects>> {
+        self.multi_get_executed_effects(vec![*digest])
+            .map(|mut effects| effects.pop())
+    }
+
+    fn multi_get_effects(
+        &self,
+        digests: &[TransactionEffectsDigest],
+    ) -> SuiResult<Vec<Option<TransactionEffects>>>;
+
+    fn get_effects(
+        &self,
+        digest: &TransactionEffectsDigest,
+    ) -> SuiResult<Option<TransactionEffects>> {
+        self.multi_get_effects(vec![*digest])
+            .map(|mut effects| effects.pop())
+    }
+
     fn notify_read_executed_effects_digests(
         &self,
-        digests: Vec<TransactionDigest>,
+        digests: &[TransactionDigest],
     ) -> BoxFuture<'_, SuiResult<Vec<TransactionEffectsDigest>>>;
 }
 
-pub(crate) trait ExecutionCacheWrite: Send + Sync {
+pub trait ExecutionCacheWrite: Send + Sync {
     fn update_state(&self, epoch_id: EpochId, tx_outputs: TransactionOutputs) -> SuiResult;
 }
 
@@ -289,9 +335,59 @@ impl ExecutionCacheRead for InMemoryCache {
             .have_received_object_at_version(object_id, version, epoch_id)
     }
 
+    fn multi_get_transaction_blocks(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> SuiResult<Vec<Option<Arc<VerifiedTransaction>>>> {
+        let mut results = vec![None; digests.len()];
+        let mut fetch_indices = Vec::with_capacity(digests.len());
+        let mut fetch_digests = Vec::with_capacity(digests.len());
+
+        for (i, digest) in digests.iter().enumerate() {
+            if let Some(tx) = self.pending_transaction_writes.get(digest) {
+                results[i] = Some(tx.transaction.clone());
+            } else {
+                fetch_indices.push(i);
+                fetch_digests.push(*digest);
+            }
+        }
+
+        let results = self.store.multi_get_transaction_blocks(&fetch_digests)?;
+        assert_eq!(results.len(), fetch_indices.len());
+        assert_eq!(results.len(), fetch_digests.len());
+
+        for (i, result) in fetch_indices.into_iter().zip(results.into_iter()) {
+            results[i] = result.into();
+        }
+
+        Ok(results)
+    }
+
+    fn multi_get_executed_effects_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> SuiResult<Vec<TransactionEffectsDigest>> {
+        todo!()
+    }
+
+    fn multi_get_executed_effects(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> SuiResult<Vec<TransactionEffects>> {
+        todo!()
+    }
+
+    fn multi_get_effects(
+        &self,
+        digests: &[TransactionEffectsDigest],
+    ) -> SuiResult<Vec<Option<TransactionEffects>>> {
+        // TODO: use cache?
+        Ok(self.store.perpetual_tables.effects.multi_get(digests)?)
+    }
+
     fn notify_read_executed_effects_digests(
         &self,
-        digests: Vec<TransactionDigest>,
+        digests: &[TransactionDigest],
     ) -> BoxFuture<'_, SuiResult<Vec<TransactionEffectsDigest>>> {
         async move {
             todo!();

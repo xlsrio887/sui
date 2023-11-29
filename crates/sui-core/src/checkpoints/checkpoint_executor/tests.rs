@@ -79,8 +79,7 @@ pub async fn test_checkpoint_executor_crash_recovery() {
     let mut executor = CheckpointExecutor::new_for_tests(
         checkpoint_sender.subscribe(),
         checkpoint_store.clone(),
-        state.database.clone(),
-        state.transaction_manager().clone(),
+        state.clone(),
         accumulator.clone(),
     );
 
@@ -346,8 +345,7 @@ pub async fn test_reconfig_crash_recovery() {
     let mut executor = CheckpointExecutor::new_for_tests(
         checkpoint_sender.subscribe(),
         checkpoint_store.clone(),
-        authority_state.database.clone(),
-        authority_state.transaction_manager().clone(),
+        authority_state.clone(),
         accumulator.clone(),
     );
 
@@ -395,8 +393,7 @@ async fn init_executor_test(
     let executor = CheckpointExecutor::new_for_tests(
         checkpoint_sender.subscribe(),
         store.clone(),
-        state.database.clone(),
-        state.transaction_manager().clone(),
+        state.clone(),
         accumulator.clone(),
     );
     (

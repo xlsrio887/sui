@@ -14,7 +14,7 @@ use sui_types::transaction::{TransactionDataAPI, VerifiedTransaction};
 
 /// TransactionOutputs
 pub(crate) struct TransactionOutputs {
-    pub transaction: VerifiedTransaction,
+    pub transaction: Arc<VerifiedTransaction>,
     pub effects: TransactionEffects,
     pub events: TransactionEvents,
 

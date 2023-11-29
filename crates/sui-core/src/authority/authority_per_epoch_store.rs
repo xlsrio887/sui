@@ -52,6 +52,7 @@ use crate::consensus_handler::{
 };
 use crate::epoch::epoch_metrics::EpochMetrics;
 use crate::epoch::reconfiguration::ReconfigState;
+use crate::in_mem_execution_cache::ExecutionCacheRead;
 use crate::module_cache_metrics::ResolverMetrics;
 use crate::post_consensus_tx_reorder::PostConsensusTxReorder;
 use crate::signature_verifier::*;
@@ -1172,7 +1173,7 @@ impl AuthorityPerEpochStore {
     async fn get_or_init_next_object_versions(
         &self,
         objects_to_init: impl Iterator<Item = (ObjectID, SequenceNumber)> + Clone,
-        object_store: impl ObjectStore,
+        cache_reader: &dyn ExecutionCacheRead,
     ) -> SuiResult<HashMap<ObjectID, SequenceNumber>> {
         let mut ret: HashMap<_, _>;
         // Since this can be called from consensus task, we must retry forever - the only other
@@ -1210,7 +1211,7 @@ impl AuthorityPerEpochStore {
                     // Note: we don't actually need to read from the transaction here, as no writer
                     // can update object_store until after get_or_init_next_object_versions
                     // completes.
-                    match object_store.get_object(id).expect("read cannot fail") {
+                    match cache_reader.get_object(id).expect("read cannot fail") {
                         Some(obj) => (*id, obj.version()),
                         None => (*id, *initial_version),
                     }
@@ -1240,7 +1241,7 @@ impl AuthorityPerEpochStore {
         &self,
         certificate: &VerifiedExecutableTransaction,
         assigned_versions: &Vec<(ObjectID, SequenceNumber)>,
-        object_store: impl ObjectStore,
+        cache_reader: &dyn ExecutionCacheRead,
     ) -> SuiResult {
         let tx_digest = certificate.digest();
 
@@ -1259,7 +1260,7 @@ impl AuthorityPerEpochStore {
             .map(SharedInputObject::into_id_and_version)
             .collect();
 
-        self.get_or_init_next_object_versions(shared_input_objects.into_iter(), object_store)
+        self.get_or_init_next_object_versions(shared_input_objects.into_iter(), cache_reader)
             .await?;
         self.tables
             .assigned_shared_object_versions
@@ -1373,7 +1374,7 @@ impl AuthorityPerEpochStore {
         &self,
         certificate: &VerifiedExecutableTransaction,
         effects: &TransactionEffects,
-        object_store: impl ObjectStore,
+        cache_reader: &dyn ExecutionCacheRead,
     ) -> SuiResult {
         self.set_assigned_shared_object_versions(
             certificate,
@@ -1382,7 +1383,7 @@ impl AuthorityPerEpochStore {
                 .into_iter()
                 .map(|iso| iso.id_and_version())
                 .collect(),
-            object_store,
+            cache_reader,
         )
         .await
     }
@@ -2047,7 +2048,7 @@ impl AuthorityPerEpochStore {
         transactions: Vec<SequencedConsensusTransaction>,
         consensus_stats: &ExecutionIndicesWithStats,
         checkpoint_service: &Arc<C>,
-        object_store: impl ObjectStore,
+        cache_reader: &dyn ExecutionCacheRead,
         commit_round: Round,
         commit_timestamp: TimestampMs,
         skipped_consensus_txns: &IntCounter,
@@ -2137,7 +2138,7 @@ impl AuthorityPerEpochStore {
                 &consensus_transactions,
                 &end_of_publish_transactions,
                 checkpoint_service,
-                object_store,
+                cache_reader,
                 commit_round,
                 previously_deferred_tx_digests,
                 last_randomness_round_written,
@@ -2212,14 +2213,14 @@ impl AuthorityPerEpochStore {
         self: &Arc<Self>,
         transactions: Vec<SequencedConsensusTransaction>,
         checkpoint_service: &Arc<C>,
-        object_store: impl ObjectStore,
+        cache_reader: &dyn ExecutionCacheRead,
         skipped_consensus_txns: &IntCounter,
     ) -> SuiResult<Vec<VerifiedExecutableTransaction>> {
         self.process_consensus_transactions_and_commit_boundary(
             transactions,
             &ExecutionIndicesWithStats::default(),
             checkpoint_service,
-            object_store,
+            cache_reader,
             self.get_highest_pending_checkpoint_height() + 1,
             0,
             skipped_consensus_txns,
@@ -2253,7 +2254,7 @@ impl AuthorityPerEpochStore {
         transactions: &[VerifiedSequencedConsensusTransaction],
         end_of_publish_transactions: &[VerifiedSequencedConsensusTransaction],
         checkpoint_service: &Arc<C>,
-        object_store: impl ObjectStore,
+        cache_reader: &dyn ExecutionCacheRead,
         commit_round: Round,
         previously_deferred_tx_digests: HashSet<TransactionDigest>,
         last_randomness_round: RandomnessRound,
@@ -2286,7 +2287,7 @@ impl AuthorityPerEpochStore {
 
             self.get_or_init_next_object_versions(
                 unique_shared_input_objects.into_iter(),
-                &object_store,
+                cache_reader,
             )
             .await?
         };

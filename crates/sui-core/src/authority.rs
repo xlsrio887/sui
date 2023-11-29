@@ -134,7 +134,7 @@ use crate::checkpoints::CheckpointStore;
 use crate::consensus_adapter::ConsensusAdapter;
 use crate::epoch::committee_store::CommitteeStore;
 use crate::execution_driver::execution_process;
-use crate::in_mem_execution_cache::InMemoryCache;
+use crate::in_mem_execution_cache::{ExecutionCacheRead, InMemoryCache};
 use crate::module_cache_metrics::ResolverMetrics;
 use crate::stake_aggregator::StakeAggregator;
 use crate::state_accumulator::{StateAccumulator, WrappedObject};
@@ -618,6 +618,8 @@ pub struct AuthorityState {
     /// The database
     input_loader: TransactionInputLoader,
     output_writer: TransactionOutputWriter,
+    execution_cache: Arc<InMemoryCache>,
+
     pub database: Arc<AuthorityStore>, // TODO: remove pub
 
     epoch_store: ArcSwap<AuthorityPerEpochStore>,
@@ -878,7 +880,11 @@ impl AuthorityState {
 
         if transaction.contains_shared_object() {
             epoch_store
-                .acquire_shared_locks_from_effects(transaction, effects.data(), &self.database)
+                .acquire_shared_locks_from_effects(
+                    transaction,
+                    effects.data(),
+                    self.execution_cache.as_ref(),
+                )
                 .await?;
         }
 
@@ -2180,6 +2186,7 @@ impl AuthorityState {
             epoch_store: ArcSwap::new(epoch_store.clone()),
             input_loader,
             output_writer,
+            execution_cache,
             database: store,
             indexes,
             subscription_handler: Arc::new(SubscriptionHandler::new(prometheus_registry)),
@@ -2212,6 +2219,10 @@ impl AuthorityState {
             .expect("Error indexing genesis objects.");
 
         state
+    }
+
+    pub(crate) fn get_cache_reader(&self) -> &Arc<InMemoryCache> {
+        &self.execution_cache
     }
 
     pub async fn prune_checkpoints_for_eligible_epochs(
