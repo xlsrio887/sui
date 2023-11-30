@@ -67,13 +67,13 @@ pub trait ExecutionCacheRead: Send + Sync {
         digest: &TransactionDigest,
     ) -> SuiResult<Option<Arc<VerifiedTransaction>>> {
         self.multi_get_transaction_blocks(vec![*digest])
-            .map(|mut blocks| blocks.pop())
+            .map(|mut blocks| blocks.pop().expect("multi-get must return non empty vec"))
     }
 
     fn multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<TransactionEffectsDigest>>;
+    ) -> SuiResult<Vec<Option<TransactionEffectsDigest>>>;
 
     fn multi_get_executed_effects(
         &self,
@@ -366,7 +366,7 @@ impl ExecutionCacheRead for InMemoryCache {
     fn multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<TransactionEffectsDigest>> {
+    ) -> SuiResult<Vec<Option<TransactionEffectsDigest>>> {
         todo!()
     }
 

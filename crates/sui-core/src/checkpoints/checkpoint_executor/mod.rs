@@ -387,10 +387,8 @@ impl CheckpointExecutor {
         checkpoint: VerifiedCheckpoint,
     ) {
         let change_epoch_fx = self
-            .authority_store
-            .perpetual_tables
-            .effects
-            .get(&execution_digests.effects)
+            .cache_reader
+            .get_effects(&execution_digests.effects)
             .expect("Fetching effects for change_epoch tx cannot fail")
             .expect("Change_epoch tx effects must exist");
 
@@ -399,7 +397,7 @@ impl CheckpointExecutor {
                 .acquire_shared_locks_from_effects(
                     &change_epoch_tx,
                     &change_epoch_fx,
-                    &self.authority_store,
+                    self.cache_reader.as_ref(),
                 )
                 .await
                 .expect("Acquiring shared locks for change_epoch tx cannot fail");
@@ -587,7 +585,7 @@ async fn handle_execution_effects(
     // Whether the checkpoint is next to execute and blocking additional executions.
     let mut blocking_execution = false;
     loop {
-        let effects_future = cache_reader.notify_read_executed_effects(all_tx_digests.clone());
+        let effects_future = cache_reader.notify_read_executed_effects_digests(&all_tx_digests);
 
         match timeout(log_timeout_sec, effects_future).await {
             Err(_elapsed) => {
@@ -732,7 +730,7 @@ fn assert_not_forked(
 // Given a checkpoint, find the end of epoch transaction, if it exists
 fn extract_end_of_epoch_tx(
     checkpoint: &VerifiedCheckpoint,
-    authority_store: Arc<AuthorityStore>,
+    cache_reader: &dyn ExecutionCacheRead,
     checkpoint_store: Arc<CheckpointStore>,
     epoch_store: Arc<AuthorityPerEpochStore>,
 ) -> Option<(ExecutionDigests, VerifiedExecutableTransaction)> {
@@ -756,7 +754,7 @@ fn extract_end_of_epoch_tx(
         .last()
         .expect("Final checkpoint must have at least one transaction");
 
-    let change_epoch_tx = authority_store
+    let change_epoch_tx = cache_reader
         .get_transaction_block(&digests.transaction)
         .expect("read cannot fail");
 
@@ -784,7 +782,6 @@ fn extract_end_of_epoch_tx(
 // execution digests, transaction digests, and transactions to be executed.
 fn get_unexecuted_transactions(
     checkpoint: VerifiedCheckpoint,
-    //authority_store: Arc<AuthorityStore>,
     cache_reader: &dyn ExecutionCacheRead,
     checkpoint_store: Arc<CheckpointStore>,
     epoch_store: Arc<AuthorityPerEpochStore>,
