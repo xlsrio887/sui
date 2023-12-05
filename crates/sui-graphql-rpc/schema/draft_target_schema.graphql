@@ -772,7 +772,11 @@ type ProgrammableTransactionBlock {
   transactions: [ProgrammableTransaction]
 }
 
-union TransactionInput = MovePackage | MoveObject | SharedInput
+union TransactionInput = OwnedOrImmutable | SharedInput | Receiving
+
+type OwnedOrImmutable {
+    object: Object
+}
 
 type SharedInput {
   id: SuiAddress
@@ -780,11 +784,15 @@ type SharedInput {
   mutable: Boolean
 }
 
+type Receiving {
+    object: Object
+}
+
 union TransactionArgument = GasCoin | Input | Result
 
-type GasCoin
-type Input   { ix: Int }
-type Result  { cmd: Int, ix: Int }
+type GasCoin { _: Boolean }
+type Input   { ix: Int! }
+type Result  { cmd: Int!, ix: Int }
 
 union ProgrammableTransaction =
     MoveCallTransaction
@@ -796,6 +804,9 @@ union ProgrammableTransaction =
   | MakeMoveVecTransaction
 
 type MoveCallTransaction {
+  package: SuiAddress
+  module: String
+  functionName: String
   function: MoveFunction
   typeArguments: [MoveType]
   arguments: [TransactionArgument]
@@ -817,12 +828,14 @@ type MergeCoinsTransaction {
 }
 
 type PublishTransaction {
-  dependencies: [MovePackage]
+  modules: [Base64]
+  dependencies: [SuiAddress]
 }
 
 type UpgradeTransaction {
-  dependencies: [MovePackage]
-  currentPackage: MovePackage
+  modules: [Base64]
+  dependencies: [SuiAddress]
+  currentPackage: SuiAddress
   upgradeTicket: TransactionArgument
 }
 
