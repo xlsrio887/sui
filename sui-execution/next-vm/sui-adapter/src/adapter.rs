@@ -118,8 +118,7 @@ mod checked {
                     .no_extraneous_module_bytes(),
                 #[cfg(feature = "gas-profiler")]
                 profiler_config: vm_profiler_config,
-                #[cfg(not(feature = "gas-profiler"))]
-                profiler_config: None,
+
                 // Don't augment errors with execution state on-chain
                 error_execution_state: false,
             },
