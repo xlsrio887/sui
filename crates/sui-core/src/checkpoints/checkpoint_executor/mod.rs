@@ -439,7 +439,7 @@ impl CheckpointExecutor {
                 if let Some((change_epoch_execution_digests, change_epoch_tx)) =
                     extract_end_of_epoch_tx(
                         checkpoint,
-                        self.authority_store.clone(),
+                        self.cache_reader.as_ref(),
                         self.checkpoint_store.clone(),
                         epoch_store.clone(),
                     )
@@ -478,7 +478,7 @@ impl CheckpointExecutor {
                         .collect();
 
                     let effects = self
-                        .authority_store
+                        .cache_reader
                         .notify_read_executed_effects(all_tx_digests.clone())
                         .await
                         .expect("Failed to get executed effects for finalizing checkpoint");
