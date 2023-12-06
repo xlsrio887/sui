@@ -3960,7 +3960,7 @@ checksum = "40bf114f1017ace0f622f1652f59c2c5e1abfe7d88891cca0c43da979b351de0"
 dependencies = [
  "arrayvec 0.7.2",
  "bytes",
- "cargo_metadata",
+ "cargo_metadata 0.15.4",
  "chrono",
  "convert_case 0.6.0",
  "elliptic-curve 0.13.4",
@@ -6262,7 +6262,7 @@ dependencies = [
  "tagptr",
  "thiserror",
  "triomphe",
- "uuid",
+ "uuid 1.2.2",
 ]
 
 [[package]]
