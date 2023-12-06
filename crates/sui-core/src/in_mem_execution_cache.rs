@@ -12,8 +12,8 @@ use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use sui_types::base_types::{EpochId, ObjectID, SequenceNumber};
-use sui_types::digests::{TransactionDigest, TransactionEffectsDigest};
-use sui_types::effects::TransactionEffects;
+use sui_types::digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest};
+use sui_types::effects::{TransactionEffects, TransactionEvents};
 use sui_types::error::{SuiError, SuiResult, UserInputError};
 use sui_types::message_envelope::Message;
 use sui_types::object::Object;
@@ -67,7 +67,11 @@ pub trait ExecutionCacheRead: Send + Sync {
         digest: &TransactionDigest,
     ) -> SuiResult<Option<Arc<VerifiedTransaction>>> {
         self.multi_get_transaction_blocks(vec![*digest])
-            .map(|mut blocks| blocks.pop().expect("multi-get must return non empty vec"))
+            .map(|mut blocks| {
+                blocks
+                    .pop()
+                    .expect("multi-get must return correct number of items")
+            })
     }
 
     fn multi_get_executed_effects_digests(
@@ -78,14 +82,18 @@ pub trait ExecutionCacheRead: Send + Sync {
     fn multi_get_executed_effects(
         &self,
         digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<TransactionEffects>>;
+    ) -> SuiResult<Vec<Option<TransactionEffects>>>;
 
     fn get_executed_effects(
         &self,
         digest: &TransactionDigest,
     ) -> SuiResult<Option<TransactionEffects>> {
-        self.multi_get_executed_effects(vec![*digest])
-            .map(|mut effects| effects.pop())
+        self.multi_get_executed_effects(&[*digest])
+            .map(|mut effects| {
+                effects
+                    .pop()
+                    .expect("multi-get must return correct number of items")
+            })
     }
 
     fn multi_get_effects(
@@ -97,14 +105,46 @@ pub trait ExecutionCacheRead: Send + Sync {
         &self,
         digest: &TransactionEffectsDigest,
     ) -> SuiResult<Option<TransactionEffects>> {
-        self.multi_get_effects(vec![*digest])
-            .map(|mut effects| effects.pop())
+        self.multi_get_effects(&[*digest]).map(|mut effects| {
+            effects
+                .pop()
+                .expect("multi-get must return correct number of items")
+        })
+    }
+
+    fn multi_get_events(
+        &self,
+        event_digests: &[TransactionEventsDigest],
+    ) -> SuiResult<Vec<Option<TransactionEvents>>>;
+
+    fn get_events(&self, digest: &TransactionEventsDigest) -> SuiResult<Option<TransactionEvents>> {
+        self.multi_get_events(&[*digest]).map(|mut events| {
+            events
+                .pop()
+                .expect("multi-get must return correct number of items")
+        })
     }
 
     fn notify_read_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
     ) -> BoxFuture<'_, SuiResult<Vec<TransactionEffectsDigest>>>;
+
+    fn notify_read_executed_effects(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> BoxFuture<'_, SuiResult<Vec<TransactionEffects>>> {
+        async move {
+            let digests = self.notify_read_executed_effects_digests(digests).await?;
+            self.multi_get_executed_effects(&digests).map(|effects| {
+                effects
+                    .into_iter()
+                    .map(|e| e.expect("digests must exist"))
+                    .collect()
+            })
+        }
+        .boxed()
+    }
 }
 
 pub trait ExecutionCacheWrite: Send + Sync {
@@ -352,12 +392,12 @@ impl ExecutionCacheRead for InMemoryCache {
             }
         }
 
-        let results = self.store.multi_get_transaction_blocks(&fetch_digests)?;
+        let multiget_results = self.store.multi_get_transaction_blocks(&fetch_digests)?;
         assert_eq!(results.len(), fetch_indices.len());
         assert_eq!(results.len(), fetch_digests.len());
 
-        for (i, result) in fetch_indices.into_iter().zip(results.into_iter()) {
-            results[i] = result.into();
+        for (i, result) in fetch_indices.into_iter().zip(multiget_results.into_iter()) {
+            results[i] = result.map(|r| Arc::new(r));
         }
 
         Ok(results)
@@ -373,7 +413,7 @@ impl ExecutionCacheRead for InMemoryCache {
     fn multi_get_executed_effects(
         &self,
         digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<TransactionEffects>> {
+    ) -> SuiResult<Vec<Option<TransactionEffects>>> {
         todo!()
     }
 
@@ -393,6 +433,14 @@ impl ExecutionCacheRead for InMemoryCache {
             todo!();
         }
         .boxed()
+    }
+
+    fn multi_get_events(
+        &self,
+        event_digests: &[TransactionEventsDigest],
+    ) -> SuiResult<Vec<Option<TransactionEvents>>> {
+        // TODO: use cache?
+        self.store.multi_get_events(event_digests)
     }
 }
 

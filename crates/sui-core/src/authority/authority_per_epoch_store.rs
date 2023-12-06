@@ -82,7 +82,6 @@ use sui_types::messages_consensus::{
 };
 use sui_types::storage::{
     transaction_input_object_keys, transaction_receiving_object_keys, GetSharedLocks, ObjectKey,
-    ObjectStore,
 };
 use sui_types::sui_system_state::epoch_start_sui_system_state::{
     EpochStartSystemState, EpochStartSystemStateTrait,

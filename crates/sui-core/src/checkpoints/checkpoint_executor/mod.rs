@@ -357,7 +357,7 @@ impl CheckpointExecutor {
             while let Err(err) = execute_checkpoint(
                 checkpoint.clone(),
                 checkpoint_store,
-                cache_reader,
+                cache_reader.as_ref(),
                 epoch_store,
                 tx_manager,
                 accumulator,
@@ -414,7 +414,7 @@ impl CheckpointExecutor {
             vec![change_epoch_tx_digest],
             checkpoint.clone(),
             self.checkpoint_store.clone(),
-            self.authority_store.clone(),
+            self.cache_reader.as_ref(),
             epoch_store.clone(),
             self.tx_manager.clone(),
             self.accumulator.clone(),
@@ -479,12 +479,13 @@ impl CheckpointExecutor {
 
                     let effects = self
                         .cache_reader
-                        .notify_read_executed_effects(all_tx_digests.clone())
+                        .notify_read_executed_effects(&all_tx_digests)
                         .await
                         .expect("Failed to get executed effects for finalizing checkpoint");
 
                     finalize_checkpoint(
                         self.authority_store.clone(),
+                        self.cache_reader.as_ref(),
                         self.checkpoint_store.clone(),
                         &all_tx_digests,
                         epoch_store.clone(),
@@ -572,7 +573,7 @@ async fn handle_execution_effects(
     all_tx_digests: Vec<TransactionDigest>,
     checkpoint: VerifiedCheckpoint,
     checkpoint_store: Arc<CheckpointStore>,
-    cache_reader: Arc<dyn ExecutionCacheRead>,
+    cache_reader: &dyn ExecutionCacheRead,
     epoch_store: Arc<AuthorityPerEpochStore>,
     transaction_manager: Arc<TransactionManager>,
     accumulator: Arc<StateAccumulator>,
@@ -668,7 +669,7 @@ async fn handle_execution_effects(
                         tx_digest,
                         expected_effects_digest,
                         &actual_effects.digest(),
-                        cache_reader.as_ref(),
+                        cache_reader,
                     );
                 }
 
@@ -678,7 +679,7 @@ async fn handle_execution_effects(
                 // the change epoch tx, which is done after all other checkpoint execution
                 if checkpoint.end_of_epoch_data.is_none() {
                     finalize_checkpoint(
-                        cache_reader.as_ref(),
+                        cache_reader,
                         checkpoint_store.clone(),
                         &all_tx_digests,
                         epoch_store.clone(),
@@ -1019,6 +1020,7 @@ async fn execute_transactions(
 #[instrument(level = "debug", skip_all)]
 fn finalize_checkpoint(
     authority_store: Arc<AuthorityStore>,
+    cache_reader: &dyn ExecutionCacheRead,
     checkpoint_store: Arc<CheckpointStore>,
     tx_digests: &[TransactionDigest],
     epoch_store: Arc<AuthorityPerEpochStore>,
@@ -1036,7 +1038,7 @@ fn finalize_checkpoint(
         store_checkpoint_locally(
             path,
             checkpoint,
-            authority_store,
+            cache_reader,
             checkpoint_store,
             tx_digests.to_vec(),
         )?;

@@ -155,7 +155,7 @@ impl TransactionOutputWriter {
         let wrapped = effects.wrapped().into_iter().map(ObjectKey::from).collect();
 
         TransactionOutputs {
-            transaction,
+            transaction: Arc::new(transaction),
             effects,
             events,
             markers,

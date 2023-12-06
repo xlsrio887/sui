@@ -11,6 +11,7 @@ use crate::consensus_throughput_calculator::ConsensusThroughputCalculator;
 use crate::consensus_types::committee_api::CommitteeAPI;
 use crate::consensus_types::consensus_output_api::ConsensusOutputAPI;
 use crate::consensus_types::AuthorityIndex;
+use crate::in_mem_execution_cache::ExecutionCacheRead;
 use crate::scoring_decision::update_low_scoring_authorities;
 use crate::transaction_manager::TransactionManager;
 use arc_swap::ArcSwap;
@@ -80,9 +81,7 @@ impl ConsensusHandlerInitializer {
             )),
         }
     }
-    pub fn new_consensus_handler(
-        &self,
-    ) -> ConsensusHandler<Arc<AuthorityStore>, CheckpointService> {
+    pub fn new_consensus_handler(&self) -> ConsensusHandler<CheckpointService> {
         let new_epoch_start_state = self.epoch_store.epoch_start_state();
         let committee = new_epoch_start_state.get_narwhal_committee();
 
@@ -90,7 +89,7 @@ impl ConsensusHandlerInitializer {
             self.epoch_store.clone(),
             self.checkpoint_service.clone(),
             self.state.transaction_manager().clone(),
-            self.state.db(),
+            self.state.cache_reader().clone(),
             self.low_scoring_authorities.clone(),
             committee,
             self.state.metrics.clone(),
@@ -99,7 +98,7 @@ impl ConsensusHandlerInitializer {
     }
 }
 
-pub struct ConsensusHandler<T, C> {
+pub struct ConsensusHandler<C> {
     /// A store created for each epoch. ConsensusHandler is recreated each epoch, with the
     /// corresponding store. This store is also used to get the current epoch ID.
     epoch_store: Arc<AuthorityPerEpochStore>,
@@ -108,8 +107,8 @@ pub struct ConsensusHandler<T, C> {
     /// checking chain consistency, and accumulating per-epoch consensus output stats.
     last_consensus_stats: ExecutionIndicesWithStats,
     checkpoint_service: Arc<C>,
-    /// parent_sync_store is needed when determining the next version to assign for shared objects.
-    object_store: T,
+    /// cache reader is needed when determining the next version to assign for shared objects.
+    cache_reader: Arc<dyn ExecutionCacheRead>,
     /// Reputation scores used by consensus adapter that we update, forwarded from consensus
     low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
     /// The narwhal committee used to do stake computations for deciding set of low scoring authorities
@@ -126,12 +125,12 @@ pub struct ConsensusHandler<T, C> {
 
 const PROCESSED_CACHE_CAP: usize = 1024 * 1024;
 
-impl<T, C> ConsensusHandler<T, C> {
+impl<C> ConsensusHandler<C> {
     pub fn new(
         epoch_store: Arc<AuthorityPerEpochStore>,
         checkpoint_service: Arc<C>,
         transaction_manager: Arc<TransactionManager>,
-        object_store: T,
+        cache_reader: Arc<dyn ExecutionCacheRead>,
         low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
         committee: Committee,
         metrics: Arc<AuthorityMetrics>,
@@ -151,7 +150,7 @@ impl<T, C> ConsensusHandler<T, C> {
             epoch_store,
             last_consensus_stats,
             checkpoint_service,
-            object_store,
+            cache_reader,
             low_scoring_authorities,
             committee,
             metrics,
@@ -197,9 +196,7 @@ fn update_index_and_hash(
 }
 
 #[async_trait]
-impl<T: ObjectStore + Send + Sync, C: CheckpointServiceNotify + Send + Sync> ExecutionState
-    for ConsensusHandler<T, C>
-{
+impl<C: CheckpointServiceNotify + Send + Sync> ExecutionState for ConsensusHandler<C> {
     /// This function will be called by Narwhal, after Narwhal sequenced this certificate.
     #[instrument(level = "debug", skip_all)]
     async fn handle_consensus_output(&mut self, consensus_output: ConsensusOutput) {
@@ -213,9 +210,7 @@ impl<T: ObjectStore + Send + Sync, C: CheckpointServiceNotify + Send + Sync> Exe
     }
 }
 
-impl<T: ObjectStore + Send + Sync, C: CheckpointServiceNotify + Send + Sync>
-    ConsensusHandler<T, C>
-{
+impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
     #[instrument(level = "debug", skip_all)]
     async fn handle_consensus_output_internal(
         &mut self,
@@ -457,7 +452,7 @@ impl<T: ObjectStore + Send + Sync, C: CheckpointServiceNotify + Send + Sync>
                 all_transactions,
                 &self.last_consensus_stats,
                 &self.checkpoint_service,
-                &self.object_store,
+                self.cache_reader.as_ref(),
                 round,
                 timestamp,
                 &self.metrics.skipped_consensus_txns,
@@ -517,7 +512,7 @@ pub struct MysticetiConsensusHandler {
 
 impl MysticetiConsensusHandler {
     pub fn new(
-        mut consensus_handler: ConsensusHandler<Arc<AuthorityStore>, CheckpointService>,
+        mut consensus_handler: ConsensusHandler<CheckpointService>,
         mut receiver: tokio::sync::mpsc::UnboundedReceiver<
             mysticeti_core::consensus::linearizer::CommittedSubDag,
         >,
@@ -539,7 +534,7 @@ impl Drop for MysticetiConsensusHandler {
     }
 }
 
-impl<T, C> ConsensusHandler<T, C> {
+impl<C> ConsensusHandler<C> {
     fn consensus_commit_prologue_transaction(
         &self,
         round: u64,
