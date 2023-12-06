@@ -4693,7 +4693,7 @@ async fn test_consensus_message_processed() {
                 .acquire_shared_locks_from_effects(
                     &VerifiedExecutableTransaction::new_from_certificate(certificate.clone()),
                     &effects1,
-                    authority2.db(),
+                    authority2.get_cache_reader().as_ref(),
                 )
                 .await
                 .unwrap();

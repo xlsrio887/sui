@@ -2221,7 +2221,7 @@ impl AuthorityState {
         state
     }
 
-    pub(crate) fn get_cache_reader(&self) -> &Arc<InMemoryCache> {
+    pub fn get_cache_reader(&self) -> &Arc<InMemoryCache> {
         &self.execution_cache
     }
 

@@ -13,7 +13,7 @@ use sui_types::storage::{MarkerValue, ObjectKey};
 use sui_types::transaction::{TransactionDataAPI, VerifiedTransaction};
 
 /// TransactionOutputs
-pub(crate) struct TransactionOutputs {
+pub struct TransactionOutputs {
     pub transaction: Arc<VerifiedTransaction>,
     pub effects: TransactionEffects,
     pub events: TransactionEvents,

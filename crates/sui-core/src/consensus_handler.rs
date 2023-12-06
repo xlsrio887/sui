@@ -5,7 +5,7 @@ use crate::authority::authority_per_epoch_store::{
     AuthorityPerEpochStore, ConsensusStats, ConsensusStatsAPI, ExecutionIndicesWithStats,
 };
 use crate::authority::epoch_start_configuration::EpochStartConfigTrait;
-use crate::authority::{AuthorityMetrics, AuthorityState, AuthorityStore};
+use crate::authority::{AuthorityMetrics, AuthorityState};
 use crate::checkpoints::{CheckpointService, CheckpointServiceNotify};
 use crate::consensus_throughput_calculator::ConsensusThroughputCalculator;
 use crate::consensus_types::committee_api::CommitteeAPI;
@@ -36,7 +36,6 @@ use sui_types::executable_transaction::{
 use sui_types::messages_consensus::{
     ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind,
 };
-use sui_types::storage::ObjectStore;
 use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemStateTrait;
 use sui_types::transaction::{SenderSignedData, VerifiedTransaction};
 use tracing::{debug, error, info, instrument, trace_span};
@@ -89,7 +88,7 @@ impl ConsensusHandlerInitializer {
             self.epoch_store.clone(),
             self.checkpoint_service.clone(),
             self.state.transaction_manager().clone(),
-            self.state.cache_reader().clone(),
+            self.state.get_cache_reader().clone(),
             self.low_scoring_authorities.clone(),
             committee,
             self.state.metrics.clone(),
@@ -864,7 +863,7 @@ mod tests {
             epoch_store,
             Arc::new(CheckpointServiceNoop {}),
             state.transaction_manager().clone(),
-            state.db(),
+            state.get_cache_reader().clone(),
             Arc::new(ArcSwap::default()),
             committee.clone(),
             metrics,

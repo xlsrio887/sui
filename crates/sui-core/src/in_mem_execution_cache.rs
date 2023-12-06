@@ -11,7 +11,7 @@ use mysten_common::sync::notify_read::NotifyRead;
 use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use sui_types::base_types::{EpochId, ObjectID, SequenceNumber};
+use sui_types::base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber};
 use sui_types::digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest};
 use sui_types::effects::{TransactionEffects, TransactionEvents};
 use sui_types::error::{SuiError, SuiResult, UserInputError};
@@ -34,6 +34,10 @@ pub trait ExecutionCacheRead: Send + Sync {
     ) -> SuiResult<Option<Object>>;
 
     fn multi_get_object_by_key(&self, object_keys: &[ObjectKey]) -> SuiResult<Vec<Option<Object>>>;
+
+    /// Variant of multi_get_object_by_key used by transaction signing that returns better error messages
+    /// when objects are not found. Returns an error if any object is not found.
+    fn multi_get_object_by_objref(&self, objrefs: &[ObjectRef]) -> SuiResult<Vec<Object>>;
 
     /// If the shared object was deleted, return deletion info for the current live version
     fn get_last_shared_object_deletion_info(
@@ -66,7 +70,7 @@ pub trait ExecutionCacheRead: Send + Sync {
         &self,
         digest: &TransactionDigest,
     ) -> SuiResult<Option<Arc<VerifiedTransaction>>> {
-        self.multi_get_transaction_blocks(vec![*digest])
+        self.multi_get_transaction_blocks(&[*digest])
             .map(|mut blocks| {
                 blocks
                     .pop()
@@ -130,13 +134,13 @@ pub trait ExecutionCacheRead: Send + Sync {
         digests: &[TransactionDigest],
     ) -> BoxFuture<'_, SuiResult<Vec<TransactionEffectsDigest>>>;
 
-    fn notify_read_executed_effects(
-        &self,
-        digests: &[TransactionDigest],
-    ) -> BoxFuture<'_, SuiResult<Vec<TransactionEffects>>> {
+    fn notify_read_executed_effects<'a>(
+        &'a self,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, SuiResult<Vec<TransactionEffects>>> {
         async move {
             let digests = self.notify_read_executed_effects_digests(digests).await?;
-            self.multi_get_executed_effects(&digests).map(|effects| {
+            self.multi_get_effects(&digests).map(|effects| {
                 effects
                     .into_iter()
                     .map(|e| e.expect("digests must exist"))
@@ -151,7 +155,7 @@ pub trait ExecutionCacheWrite: Send + Sync {
     fn update_state(&self, epoch_id: EpochId, tx_outputs: TransactionOutputs) -> SuiResult;
 }
 
-pub(crate) struct InMemoryCache {
+pub struct InMemoryCache {
     // Objects are not cached using an LRU because we manage cache evictions manually due to sui
     // semantics.
     objects: DashMap<ObjectID, BTreeMap<SequenceNumber, Object>>,
@@ -323,6 +327,33 @@ impl ExecutionCacheRead for InMemoryCache {
         }
 
         Ok(results)
+    }
+
+    fn multi_get_object_by_objref(&self, objrefs: &[ObjectRef]) -> SuiResult<Vec<Object>> {
+        let mut results = vec![None; objrefs.len()];
+        let mut fallback_keys = Vec::with_capacity(objrefs.len());
+        let mut fetch_indices = Vec::with_capacity(objrefs.len());
+
+        for (i, objref) in objrefs.iter().enumerate() {
+            if let Some(object) = self.get_object_by_key(&objref.0, objref.1)? {
+                results[i] = Some(object);
+            } else {
+                fallback_keys.push(*objref);
+                fetch_indices.push(i);
+            }
+        }
+
+        let store_results = self
+            .store
+            .multi_get_object_with_more_accurate_error_return(&fallback_keys)?;
+        assert_eq!(store_results.len(), fetch_indices.len());
+        assert_eq!(store_results.len(), fallback_keys.len());
+
+        for (i, result) in fetch_indices.into_iter().zip(store_results.into_iter()) {
+            results[i] = Some(result);
+        }
+
+        Ok(results.into_iter().map(|r| r.unwrap()).collect())
     }
 
     /// If the shared object was deleted, return deletion info for the current live version
