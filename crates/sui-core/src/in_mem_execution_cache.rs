@@ -5,7 +5,11 @@ use crate::authority::AuthorityStore;
 use crate::transaction_output_writer::TransactionOutputs;
 
 use dashmap::DashMap;
-use futures::{future::BoxFuture, FutureExt};
+use either::Either;
+use futures::{
+    future::{join_all, BoxFuture},
+    FutureExt,
+};
 use moka::sync::Cache as MokaCache;
 use mysten_common::sync::notify_read::NotifyRead;
 use parking_lot::Mutex;
@@ -86,7 +90,28 @@ pub trait ExecutionCacheRead: Send + Sync {
     fn multi_get_executed_effects(
         &self,
         digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<TransactionEffects>>>;
+    ) -> SuiResult<Vec<Option<TransactionEffects>>> {
+        let effects_digests = self.multi_get_executed_effects_digests(digests)?;
+        assert_eq!(effects_digests.len(), digests.len());
+
+        let mut results = vec![None; digests.len()];
+        let mut fetch_digests = Vec::with_capacity(digests.len());
+        let mut fetch_indices = Vec::with_capacity(digests.len());
+
+        for (i, digest) in effects_digests.into_iter().enumerate() {
+            if let Some(digest) = digest {
+                fetch_digests.push(digest);
+                fetch_indices.push(i);
+            }
+        }
+
+        let effects = self.multi_get_effects(&fetch_digests)?;
+        for (i, effects) in fetch_indices.into_iter().zip(effects.into_iter()) {
+            results[i] = effects;
+        }
+
+        Ok(results)
+    }
 
     fn get_executed_effects(
         &self,
@@ -129,10 +154,10 @@ pub trait ExecutionCacheRead: Send + Sync {
         })
     }
 
-    fn notify_read_executed_effects_digests(
-        &self,
-        digests: &[TransactionDigest],
-    ) -> BoxFuture<'_, SuiResult<Vec<TransactionEffectsDigest>>>;
+    fn notify_read_executed_effects_digests<'a>(
+        &'a self,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, SuiResult<Vec<TransactionEffectsDigest>>>;
 
     fn notify_read_executed_effects<'a>(
         &'a self,
@@ -140,6 +165,7 @@ pub trait ExecutionCacheRead: Send + Sync {
     ) -> BoxFuture<'a, SuiResult<Vec<TransactionEffects>>> {
         async move {
             let digests = self.notify_read_executed_effects_digests(digests).await?;
+            // once digests are available, effects must be present as well
             self.multi_get_effects(&digests).map(|effects| {
                 effects
                     .into_iter()
@@ -438,14 +464,30 @@ impl ExecutionCacheRead for InMemoryCache {
         &self,
         digests: &[TransactionDigest],
     ) -> SuiResult<Vec<Option<TransactionEffectsDigest>>> {
-        todo!()
-    }
+        let mut results = vec![None; digests.len()];
+        let mut fetch_indices = Vec::with_capacity(digests.len());
+        let mut fetch_digests = Vec::with_capacity(digests.len());
 
-    fn multi_get_executed_effects(
-        &self,
-        digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<TransactionEffects>>> {
-        todo!()
+        for (i, digest) in digests.iter().enumerate() {
+            if let Some(digest) = self.executed_effects_digests.get(digest) {
+                results[i] = Some(*digest);
+            } else {
+                fetch_indices.push(i);
+                fetch_digests.push(*digest);
+            }
+        }
+
+        let multiget_results = self
+            .store
+            .multi_get_executed_effects_digests(&fetch_digests)?;
+        assert_eq!(multiget_results.len(), fetch_indices.len());
+        assert_eq!(multiget_results.len(), fetch_digests.len());
+
+        for (i, result) in fetch_indices.into_iter().zip(multiget_results.into_iter()) {
+            results[i] = result;
+        }
+
+        Ok(results)
     }
 
     fn multi_get_effects(
@@ -456,12 +498,27 @@ impl ExecutionCacheRead for InMemoryCache {
         Ok(self.store.perpetual_tables.effects.multi_get(digests)?)
     }
 
-    fn notify_read_executed_effects_digests(
-        &self,
-        digests: &[TransactionDigest],
-    ) -> BoxFuture<'_, SuiResult<Vec<TransactionEffectsDigest>>> {
+    fn notify_read_executed_effects_digests<'a>(
+        &'a self,
+        digests: &'a [TransactionDigest],
+    ) -> BoxFuture<'a, SuiResult<Vec<TransactionEffectsDigest>>> {
         async move {
-            todo!();
+            let registrations = self
+                .executed_effects_digests_notify_read
+                .register_all(digests);
+
+            let executed_effects_digests = self.multi_get_executed_effects_digests(digests)?;
+
+            let results = executed_effects_digests
+                .into_iter()
+                .zip(registrations)
+                .map(|(a, r)| match a {
+                    // Note that Some() clause also drops registration that is already fulfilled
+                    Some(ready) => Either::Left(futures::future::ready(ready)),
+                    None => Either::Right(r),
+                });
+
+            Ok(join_all(results).await)
         }
         .boxed()
     }

@@ -49,9 +49,7 @@ impl EffectsNotifyRead for Arc<AuthorityStore> {
     ) -> SuiResult<Vec<TransactionEffects>> {
         let timer = Instant::now();
         // We need to register waiters _before_ reading from the database to avoid race conditions
-        let registrations = self
-            .executed_effects_notify_read
-            .register_all(digests.clone());
+        let registrations = self.executed_effects_notify_read.register_all(&digests);
         let effects = self.multi_get_executed_effects(&digests)?;
         let mut needs_wait = false;
         let mut results: FuturesUnordered<_> = effects
@@ -96,7 +94,7 @@ impl EffectsNotifyRead for Arc<AuthorityStore> {
         // We need to register waiters _before_ reading from the database to avoid race conditions
         let registrations = self
             .executed_effects_digests_notify_read
-            .register_all(digests.clone());
+            .register_all(&digests);
 
         let effects_digests = self.multi_get_executed_effects_digests(&digests)?;
 

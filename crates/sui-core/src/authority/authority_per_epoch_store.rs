@@ -1041,9 +1041,7 @@ impl AuthorityPerEpochStore {
     ) -> SuiResult<Vec<Accumulator>> {
         // We need to register waiters _before_ reading from the database to avoid
         // race conditions
-        let registrations = self
-            .checkpoint_state_notify_read
-            .register_all(checkpoints.clone());
+        let registrations = self.checkpoint_state_notify_read.register_all(&checkpoints);
         let accumulators = self
             .tables
             .state_hash_by_checkpoint
@@ -1495,7 +1493,7 @@ impl AuthorityPerEpochStore {
         &self,
         keys: Vec<SequencedConsensusTransactionKey>,
     ) -> Result<(), SuiError> {
-        let registrations = self.consensus_notify_read.register_all(keys.clone());
+        let registrations = self.consensus_notify_read.register_all(&keys);
 
         let unprocessed_keys_registrations = registrations
             .into_iter()
