@@ -1,0 +1,7 @@
+output_dir: /Users/dariorussi/tmp/packages.stats/tmp
+passes:
+  - PrintEnv
+  - PackageStats
+  - BytecodeStats
+  - OneTimeWitness
+  - InitReporter
