@@ -141,7 +141,7 @@ impl RandomnessState {
                 .expect("validity threshold should fit in u16"),
             protocol_config.random_beacon_reduction_allowed_delta(),
         );
-        let total_weight = nodes.n();
+        let total_weight = nodes.total_weight();
         let num_nodes = nodes.num_nodes();
         let prefix_str = format!(
             "dkg {} {}",
