@@ -1,8 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::authority::authority_notify_read::EffectsNotifyRead;
 use crate::authority::AuthorityStore;
 use crate::transaction_output_writer::TransactionOutputs;
+use async_trait::async_trait;
 
 use dashmap::DashMap;
 use either::Either;
@@ -198,7 +200,7 @@ pub struct InMemoryCache {
 
     // Objects that were read at transaction signing time - allows us to access them again at
     // execution time with a single lock / hash lookup
-    transaction_objects: MokaCache<TransactionDigest, Vec<Object>>,
+    _transaction_objects: MokaCache<TransactionDigest, Vec<Object>>,
 
     transaction_effects: DashMap<TransactionEffectsDigest, TransactionEffects>,
 
@@ -232,7 +234,7 @@ impl InMemoryCache {
             objects: DashMap::new(),
             packages,
             markers,
-            transaction_objects,
+            _transaction_objects: transaction_objects,
             transaction_effects: DashMap::new(),
             executed_effects_digests: DashMap::new(),
             pending_transaction_writes: DashMap::new(),
@@ -246,6 +248,10 @@ impl InMemoryCache {
             .entry(*object_id)
             .or_default()
             .insert(object.version(), object.clone());
+    }
+
+    pub fn as_notify_read_wrapper(self: Arc<Self>) -> NotifyReadWrapper {
+        NotifyReadWrapper(self)
     }
 }
 
@@ -569,17 +575,53 @@ impl ExecutionCacheWrite for InMemoryCache {
             }
         }
 
+        let tx_digest = *transaction.digest();
+        dbg!(&tx_digest);
         let effects_digest = effects.digest();
 
         self.transaction_effects
             .insert(effects_digest, effects.clone());
 
+        self.transaction_effects
+            .insert(effects_digest, effects.clone());
+
         self.executed_effects_digests
-            .insert(*transaction.digest(), effects_digest);
+            .insert(tx_digest, effects_digest);
 
         self.pending_transaction_writes
-            .insert(*transaction.digest(), tx_outputs);
+            .insert(tx_digest, tx_outputs);
+
+        self.executed_effects_digests_notify_read
+            .notify(&tx_digest, &effects_digest);
 
         Ok(())
+    }
+}
+
+// TODO: Remove EffectsNotifyRead trait and just use ExecutionCacheRead directly everywhere.
+/// This wrapper is used so that we don't have to disambiguate traits at every callsite.
+pub struct NotifyReadWrapper(Arc<InMemoryCache>);
+
+#[async_trait]
+impl EffectsNotifyRead for NotifyReadWrapper {
+    async fn notify_read_executed_effects(
+        &self,
+        digests: Vec<TransactionDigest>,
+    ) -> SuiResult<Vec<TransactionEffects>> {
+        self.0.notify_read_executed_effects(&digests).await
+    }
+
+    async fn notify_read_executed_effects_digests(
+        &self,
+        digests: Vec<TransactionDigest>,
+    ) -> SuiResult<Vec<TransactionEffectsDigest>> {
+        self.0.notify_read_executed_effects_digests(&digests).await
+    }
+
+    fn multi_get_executed_effects(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> SuiResult<Vec<Option<TransactionEffects>>> {
+        self.0.multi_get_executed_effects(digests)
     }
 }

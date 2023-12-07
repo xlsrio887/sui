@@ -1216,7 +1216,7 @@ impl SuiNode {
             state.clone(),
             checkpoint_store,
             epoch_store,
-            Box::new(state.db()),
+            Box::new(state.get_cache_reader().clone().as_notify_read_wrapper()),
             accumulator,
             checkpoint_output,
             Box::new(certified_checkpoint_output),

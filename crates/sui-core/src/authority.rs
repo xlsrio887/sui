@@ -134,7 +134,7 @@ use crate::checkpoints::CheckpointStore;
 use crate::consensus_adapter::ConsensusAdapter;
 use crate::epoch::committee_store::CommitteeStore;
 use crate::execution_driver::execution_process;
-use crate::in_mem_execution_cache::InMemoryCache;
+use crate::in_mem_execution_cache::{ExecutionCacheRead, InMemoryCache};
 use crate::module_cache_metrics::ResolverMetrics;
 use crate::stake_aggregator::StakeAggregator;
 use crate::state_accumulator::{StateAccumulator, WrappedObject};
@@ -894,8 +894,8 @@ impl AuthorityState {
             .enqueue(vec![transaction.clone()], epoch_store)?;
 
         let observed_effects = self
-            .database
-            .notify_read_executed_effects(vec![digest])
+            .get_cache_reader()
+            .notify_read_executed_effects(&[digest])
             .instrument(tracing::debug_span!(
                 "notify_read_effects_in_execute_certificate_with_effects"
             ))
@@ -1031,8 +1031,8 @@ impl AuthorityState {
     ) -> SuiResult<TransactionEffects> {
         let tx_digest = *certificate.digest();
         Ok(self
-            .database
-            .notify_read_executed_effects(vec![tx_digest])
+            .get_cache_reader()
+            .notify_read_executed_effects(&[tx_digest])
             .await?
             .pop()
             .expect("notify_read_effects should return exactly 1 element"))
