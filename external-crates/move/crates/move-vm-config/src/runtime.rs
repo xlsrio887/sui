@@ -65,7 +65,7 @@ impl Default for VMRuntimeLimitsConfig {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct VMProfilerConfig {
     /// User configured full path override
     pub full_path: Option<std::path::PathBuf>,
@@ -82,17 +82,6 @@ impl VMProfilerConfig {
             Some(VMProfilerConfig::default())
         } else {
             None
-        }
-    }
-}
-
-#[cfg(feature = "gas-profiler")]
-impl std::default::Default for VMProfilerConfig {
-    fn default() -> Self {
-        Self {
-            full_path: None,
-            track_bytecode_instructions: false,
-            use_long_function_name: false,
         }
     }
 }

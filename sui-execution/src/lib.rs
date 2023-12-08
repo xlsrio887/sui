@@ -27,7 +27,7 @@ pub const NEXT_VM: u64 = u64::MAX;
 pub fn executor(
     protocol_config: &ProtocolConfig,
     silent: bool,
-    enable_profiler: Option<std::path::PathBuf>,
+    enable_profiler: Option<PathBuf>,
 ) -> SuiResult<Arc<dyn Executor + Send + Sync>> {
     let version = protocol_config.execution_version_as_option().unwrap_or(0);
     Ok(match version {
