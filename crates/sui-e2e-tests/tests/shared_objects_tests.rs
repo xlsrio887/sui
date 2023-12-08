@@ -133,7 +133,6 @@ async fn shared_object_deletion_multiple_times() {
     let fullnode = test_cluster.spawn_new_fullnode().await.sui_node;
     fullnode
         .state()
-        .db()
         .notify_read_executed_effects(digests)
         .await
         .unwrap();
