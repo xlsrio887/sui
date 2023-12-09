@@ -941,10 +941,11 @@ impl AuthorityState {
         }
 
         let effects = self
-            .notify_read_effects(&[*certificate.digest()])
+            .get_cache_reader()
+            .notify_read_executed_effects(&[*certificate.digest()])
             .await?
             .pop()
-            .expect("must return correct number of effecgts");
+            .expect("must return correct number of effects");
         self.sign_effects(effects, epoch_store)
     }
 

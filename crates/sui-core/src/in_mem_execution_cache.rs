@@ -500,8 +500,25 @@ impl ExecutionCacheRead for InMemoryCache {
         &self,
         digests: &[TransactionEffectsDigest],
     ) -> SuiResult<Vec<Option<TransactionEffects>>> {
-        // TODO: use cache?
-        Ok(self.store.perpetual_tables.effects.multi_get(digests)?)
+        let mut results = vec![None; digests.len()];
+        let mut fetch_indices = Vec::with_capacity(digests.len());
+        let mut fetch_digests = Vec::with_capacity(digests.len());
+
+        for (i, digest) in digests.iter().enumerate() {
+            if let Some(effects) = self.transaction_effects.get(digest) {
+                results[i] = Some(effects.clone());
+            } else {
+                fetch_indices.push(i);
+                fetch_digests.push(*digest);
+            }
+        }
+
+        let fetch_results = self.store.perpetual_tables.effects.multi_get(digests)?;
+        for (i, result) in fetch_indices.into_iter().zip(fetch_results.into_iter()) {
+            results[i] = result;
+        }
+
+        Ok(results)
     }
 
     fn notify_read_executed_effects_digests<'a>(
