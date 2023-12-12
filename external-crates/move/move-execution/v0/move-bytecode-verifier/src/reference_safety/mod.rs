@@ -430,6 +430,20 @@ fn execute_inner(
             let vec_ref = safe_unwrap_err!(verifier.stack.pop());
             state.vector_op(offset, vec_ref, true)?;
         }
+        Bytecode::PackVariant(_, _)
+        | Bytecode::PackVariantGeneric(_, _)
+        | Bytecode::UnpackVariant(_, _)
+        | Bytecode::UnpackVariantGeneric(_, _)
+        | Bytecode::UnpackVariantImmRef(_, _)
+        | Bytecode::UnpackVariantGenericImmRef(_, _)
+        | Bytecode::UnpackVariantMutRef(_, _)
+        | Bytecode::UnpackVariantGenericMutRef(_, _)
+        | Bytecode::VariantSwitch(_) => {
+            return Err(
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                    .with_message("Unexpected variant opcode in version 0".to_string()),
+            );
+        }
     };
     Ok(())
 }

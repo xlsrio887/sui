@@ -264,6 +264,20 @@ impl<'a> StackUsageVerifier<'a> {
                 };
                 (1, field_count as u64)
             }
+            Bytecode::PackVariant(_, _)
+            | Bytecode::PackVariantGeneric(_, _)
+            | Bytecode::UnpackVariant(_, _)
+            | Bytecode::UnpackVariantGeneric(_, _)
+            | Bytecode::UnpackVariantImmRef(_, _)
+            | Bytecode::UnpackVariantGenericImmRef(_, _)
+            | Bytecode::UnpackVariantMutRef(_, _)
+            | Bytecode::UnpackVariantGenericMutRef(_, _)
+            | Bytecode::VariantSwitch(_) => {
+                return Err(
+                    PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                        .with_message("Unexpected variant opcode in version 1".to_string()),
+                );
+            }
         })
     }
 

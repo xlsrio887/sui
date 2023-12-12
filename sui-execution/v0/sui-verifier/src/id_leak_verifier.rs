@@ -349,7 +349,7 @@ fn pack(
     // "id". That fields must come from one of the functions that creates a new UID.
     let handle = verifier
         .binary_view
-        .struct_handle_at(struct_def.struct_handle);
+        .datatype_handle_at(struct_def.struct_handle);
     let num_fields = num_fields(struct_def);
     verifier.stack_popn(num_fields - 1)?;
     let last_value = verifier.stack.pop().unwrap();
@@ -546,6 +546,15 @@ fn execute_inner(
             verifier.stack.pop().unwrap();
             verifier.stack.pop().unwrap();
         }
+        Bytecode::PackVariant(_, _)
+        | Bytecode::PackVariantGeneric(_, _)
+        | Bytecode::UnpackVariant(_, _)
+        | Bytecode::UnpackVariantImmRef(_, _)
+        | Bytecode::UnpackVariantMutRef(_, _)
+        | Bytecode::UnpackVariantGeneric(_, _)
+        | Bytecode::UnpackVariantGenericImmRef(_, _)
+        | Bytecode::UnpackVariantGenericMutRef(_, _)
+        | Bytecode::VariantSwitch(_) => unreachable!("variant bytecodes should never occur in v0")
     };
     Ok(())
 }
