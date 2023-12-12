@@ -3,7 +3,7 @@
 
 use colored::Colorize;
 use itertools::Itertools;
-use move_binary_format::file_format::{Ability, AbilitySet, StructTypeParameter, Visibility};
+use move_binary_format::file_format::{Ability, AbilitySet, DatatypeTyParameter, Visibility};
 use move_binary_format::normalized::{
     Field as NormalizedField, Function as SuiNormalizedFunction, Module as NormalizedModule,
     Struct as NormalizedStruct, Type as NormalizedType,
@@ -209,8 +209,8 @@ impl From<NormalizedStruct> for SuiMoveNormalizedStruct {
     }
 }
 
-impl From<StructTypeParameter> for SuiMoveStructTypeParameter {
-    fn from(type_parameter: StructTypeParameter) -> Self {
+impl From<DatatypeTyParameter> for SuiMoveStructTypeParameter {
+    fn from(type_parameter: DatatypeTyParameter) -> Self {
         Self {
             constraints: type_parameter.constraints.into(),
             is_phantom: type_parameter.is_phantom,
@@ -374,6 +374,8 @@ impl From<MoveValue> for SuiMoveValue {
             MoveValue::Signer(value) | MoveValue::Address(value) => {
                 SuiMoveValue::Address(SuiAddress::from(ObjectID::from(value)))
             }
+            // TODO(tzakian)[enum] Add support for enum to sui move value
+            MoveValue::Variant(_) => todo!(),
         }
     }
 }

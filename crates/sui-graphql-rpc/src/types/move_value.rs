@@ -187,6 +187,8 @@ impl TryFrom<A::MoveValue> for MoveData {
 
             // Sui does not support `signer` as a type.
             V::Signer(_) => return Err(unexpected_signer_error()),
+            // TODO(tzakian)[enums]
+            V::Variant(_) => todo!(),
         })
     }
 }
@@ -254,6 +256,8 @@ fn try_to_json_value(value: A::MoveValue) -> Result<Value, Error> {
 
         // Sui does not support `signer` as a type.
         V::Signer(_) => return Err(unexpected_signer_error()),
+        // TODO(tzakian)[enums]
+        V::Variant(_) => todo!(),
     })
 }
 

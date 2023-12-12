@@ -204,6 +204,8 @@ impl TryFrom<A::MoveTypeLayout> for MoveTypeLayout {
                     .map(MoveFieldLayout::try_from)
                     .collect::<Result<_, _>>()?,
             ),
+            // TODO(tzakian)[enums]
+            TL::Enum(_) => todo!(),
         })
     }
 }
