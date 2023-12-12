@@ -334,7 +334,7 @@ fn pack(
     // "id". That fields must come from one of the functions that creates a new UID.
     let handle = verifier
         .binary_view
-        .struct_handle_at(struct_def.struct_handle);
+        .datatype_handle_at(struct_def.struct_handle);
     let num_fields = num_fields(struct_def);
     verifier.stack_popn(num_fields - 1)?;
     let last_value = verifier.stack.pop().unwrap();
@@ -529,6 +529,39 @@ fn execute_inner(
         Bytecode::VecSwap(_) => {
             verifier.stack.pop().unwrap();
             verifier.stack.pop().unwrap();
+            verifier.stack.pop().unwrap();
+        }
+        Bytecode::PackVariant(eidx, tidx) =>  {
+            let variant = expect_ok(verifier.binary_view.variant_def_at(*eidx, *tidx))?;
+            let num_fields = variant.fields.len();
+            verifier.stack_popn(num_fields as u64)?;
+            verifier.stack_push(AbstractValue::Other)?;
+        }
+        Bytecode::PackVariantGeneric(eeidx, tidx) =>  {
+            let enum_inst = expect_ok(verifier.binary_view.enum_instantiation_at(*eeidx))?;
+            let variant = expect_ok(verifier.binary_view.variant_def_at(enum_inst.def, *tidx))?;
+            let num_fields = variant.fields.len();
+            verifier.stack_popn(num_fields as u64)?;
+            verifier.stack_push(AbstractValue::Other)?;
+        }
+        Bytecode::UnpackVariant(eidx, tidx)
+        | Bytecode::UnpackVariantImmRef(eidx, tidx)
+        | Bytecode::UnpackVariantMutRef(eidx, tidx) =>  {
+            let variant = expect_ok(verifier.binary_view.variant_def_at(*eidx, *tidx))?;
+            let num_fields = variant.fields.len();
+            verifier.stack.pop().unwrap();
+            verifier.stack_pushn(num_fields as u64, AbstractValue::Other)?;
+        }
+        Bytecode::UnpackVariantGeneric(eeidx, tidx)
+        | Bytecode::UnpackVariantGenericImmRef(eeidx, tidx)
+        | Bytecode::UnpackVariantGenericMutRef(eeidx, tidx) =>  {
+            let enum_inst = expect_ok(verifier.binary_view.enum_instantiation_at(*eeidx))?;
+            let variant = expect_ok(verifier.binary_view.variant_def_at(enum_inst.def, *tidx))?;
+            let num_fields = variant.fields.len();
+            verifier.stack.pop().unwrap();
+            verifier.stack_pushn(num_fields as u64, AbstractValue::Other)?;
+        }
+        Bytecode::VariantSwitch(_) =>  {
             verifier.stack.pop().unwrap();
         }
     };
