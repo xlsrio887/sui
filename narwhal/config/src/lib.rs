@@ -455,11 +455,11 @@ impl std::fmt::Display for WorkerCache {
             self.epoch(),
             self.workers
                 .iter()
-                .map(|(k, v)| {
-                    if let Some(x) = k.encode_base64().get(0..16) {
+                .map(|(pk, v)| {
+                    if let Some(x) = pk.encode_base64().get(0..16) {
                         format!("{}: {}", x, v)
                     } else {
-                        format!("Invalid key: {}", k)
+                        format!("Invalid key: {}", pk)
                     }
                 })
                 .collect::<Vec<_>>()
@@ -476,29 +476,29 @@ impl WorkerCache {
     }
 
     /// Returns the addresses of a specific worker (`id`) of a specific authority (`to`).
-    pub fn worker(&self, to: &PublicKey, id: &WorkerId) -> Result<WorkerInfo, ConfigError> {
+    pub fn worker(&self, to_pk: &PublicKey, id: &WorkerId) -> Result<WorkerInfo, ConfigError> {
         self.workers
             .iter()
-            .find_map(|v| match_opt::match_opt!(v, (name, authority) if name == to => authority))
+            .find_map(|v| match_opt::match_opt!(v, (name, authority) if name == to_pk => authority))
             .ok_or_else(|| {
-                ConfigError::NotInWorkerCache(ToString::to_string(&(*to).encode_base64()))
+                ConfigError::NotInWorkerCache(ToString::to_string(&(*to_pk).encode_base64()))
             })?
             .0
             .iter()
             .find(|(worker_id, _)| worker_id == &id)
             .map(|(_, worker)| worker.clone())
-            .ok_or_else(|| ConfigError::NotInWorkerCache((*to).encode_base64()))
+            .ok_or_else(|| ConfigError::NotInWorkerCache((*to_pk).encode_base64()))
     }
 
     /// Returns the addresses of all our workers.
-    pub fn our_workers(&self, myself: &PublicKey) -> Result<Vec<WorkerInfo>, ConfigError> {
+    pub fn our_workers(&self, myself_pk: &PublicKey) -> Result<Vec<WorkerInfo>, ConfigError> {
         let res = self
             .workers
             .iter()
             .find_map(
-                |v| match_opt::match_opt!(v, (name, authority) if name == myself => authority),
+                |v| match_opt::match_opt!(v, (name, authority) if name == myself_pk => authority),
             )
-            .ok_or_else(|| ConfigError::NotInWorkerCache((*myself).encode_base64()))?
+            .ok_or_else(|| ConfigError::NotInWorkerCache((*myself_pk).encode_base64()))?
             .0
             .values()
             .cloned()

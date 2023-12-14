@@ -35,7 +35,7 @@ use std::{
 use storage::{CertificateStoreCacheMetrics, NodeStorage};
 use sui_keys::keypair_file::{
     read_authority_keypair_from_file, read_network_keypair_from_file,
-    write_authority_keypair_to_file, write_keypair_to_file,
+    write_authority_keypair_to_file, write_keypair_to_file_in_base64,
 };
 use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use sui_types::{
@@ -187,7 +187,8 @@ async fn main() -> Result<(), eyre::Report> {
         }
         Commands::GenerateNetworkKeys { filename } => {
             let network_keypair: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
-            write_keypair_to_file(&SuiKeyPair::Ed25519(network_keypair), filename).unwrap();
+            write_keypair_to_file_in_base64(&SuiKeyPair::Ed25519(network_keypair), filename)
+                .unwrap();
         }
         Commands::GetPubKey { filename } => {
             match read_network_keypair_from_file(filename) {
@@ -316,7 +317,7 @@ fn benchmark_genesis(
     for filename in primary_network_key_files {
         let network_keypair: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
         let pk = network_keypair.public().to_string();
-        write_keypair_to_file(&SuiKeyPair::Ed25519(network_keypair), filename).unwrap();
+        write_keypair_to_file_in_base64(&SuiKeyPair::Ed25519(network_keypair), filename).unwrap();
         primary_network_names.push(pk);
     }
 
@@ -368,7 +369,7 @@ fn benchmark_genesis(
     for filename in worker_key_files {
         let network_keypair: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
         let pk = network_keypair.public().to_string();
-        write_keypair_to_file(&SuiKeyPair::Ed25519(network_keypair), filename).unwrap();
+        write_keypair_to_file_in_base64(&SuiKeyPair::Ed25519(network_keypair), filename).unwrap();
         worker_names.push(pk);
     }
 

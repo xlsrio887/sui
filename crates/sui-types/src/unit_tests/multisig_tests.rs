@@ -24,7 +24,7 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     hash::HashFunction,
     secp256k1::{Secp256k1KeyPair, Secp256k1PrivateKey},
-    traits::{EncodeDecodeBase64, ToFromBytes},
+    traits::ToFromBytes,
 };
 use fastcrypto_zkp::bn254::zk_login::{parse_jwks, JwkId, OIDCProvider, ZkLoginInputs, JWK};
 use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
@@ -913,7 +913,7 @@ fn multisig_zklogin_scenarios() {
     let mut pks = vec![];
     let mut kps_and_zklogin_inputs = vec![];
     for test in test_datum {
-        let kp = SuiKeyPair::decode_base64(&test.kp).unwrap();
+        let kp = SuiKeyPair::decode(&test.kp).unwrap();
         let pk_zklogin = PublicKey::ZkLogin(
             ZkLoginPublicIdentifier::new(
                 &OIDCProvider::Twitch.get_config().iss,

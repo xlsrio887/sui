@@ -5,8 +5,8 @@ use anyhow::anyhow;
 use fastcrypto::traits::EncodeDecodeBase64;
 use sui_types::crypto::{AuthorityKeyPair, NetworkKeyPair, SuiKeyPair};
 
-/// Write Base64 encoded `flag || privkey` to file.
-pub fn write_keypair_to_file<P: AsRef<std::path::Path>>(
+/// Write Base64 encoded `flag || privkey` to file. This is only used for non user keys.
+pub fn write_keypair_to_file_in_base64<P: AsRef<std::path::Path>>(
     keypair: &SuiKeyPair,
     path: P,
 ) -> anyhow::Result<()> {
@@ -34,7 +34,9 @@ pub fn read_authority_keypair_from_file<P: AsRef<std::path::Path>>(
 }
 
 /// Read from file as Base64 encoded `flag || privkey` and return a SuiKeypair.
-pub fn read_keypair_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<SuiKeyPair> {
+pub fn read_keypair_from_file_as_base64<P: AsRef<std::path::Path>>(
+    path: P,
+) -> anyhow::Result<SuiKeyPair> {
     let contents = std::fs::read_to_string(path)?;
     SuiKeyPair::decode_base64(contents.as_str().trim()).map_err(|e| anyhow!(e))
 }
@@ -43,7 +45,7 @@ pub fn read_keypair_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Res
 pub fn read_network_keypair_from_file<P: AsRef<std::path::Path>>(
     path: P,
 ) -> anyhow::Result<NetworkKeyPair> {
-    let kp = read_keypair_from_file(path)?;
+    let kp = read_keypair_from_file_as_base64(path)?;
     if let SuiKeyPair::Ed25519(kp) = kp {
         Ok(kp)
     } else {

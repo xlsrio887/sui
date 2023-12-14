@@ -344,11 +344,11 @@ impl Committee {
     }
 
     /// Returns the primary address of the target primary.
-    pub fn primary(&self, to: &PublicKey) -> Result<Multiaddr, ConfigError> {
+    pub fn primary(&self, to_pk: &PublicKey) -> Result<Multiaddr, ConfigError> {
         self.authorities
-            .get(&to.clone())
+            .get(&to_pk.clone())
             .map(|x| x.primary_address.clone())
-            .ok_or_else(|| ConfigError::NotInCommittee((*to).encode_base64()))
+            .ok_or_else(|| ConfigError::NotInCommittee((*to_pk).encode_base64()))
     }
 
     /// Returns the primary address of the target primary.
@@ -598,11 +598,11 @@ impl std::fmt::Display for Committee {
             self.epoch(),
             self.authorities
                 .keys()
-                .map(|x| {
-                    if let Some(k) = x.encode_base64().get(0..16) {
+                .map(|pk| {
+                    if let Some(k) = pk.encode_base64().get(0..16) {
                         k.to_owned()
                     } else {
-                        format!("Invalid key: {}", x)
+                        format!("Invalid key: {}", pk)
                     }
                 })
                 .collect::<Vec<_>>()

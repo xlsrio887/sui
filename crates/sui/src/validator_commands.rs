@@ -41,8 +41,9 @@ use sui_keys::keystore::AccountKeystore;
 use sui_keys::{
     key_derive::generate_new_key,
     keypair_file::{
-        read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
-        write_authority_keypair_to_file, write_keypair_to_file,
+        read_authority_keypair_from_file, read_keypair_from_file_as_base64,
+        read_network_keypair_from_file, write_authority_keypair_to_file,
+        write_keypair_to_file_in_base64,
     },
 };
 use sui_sdk::wallet_context::WalletContext;
@@ -199,7 +200,7 @@ fn make_key_files(
         let kp = match key {
             Some(key) => {
                 println!(
-                    "Generated new key file {:?} based on sui.keystore file.",
+                    "Generated new key file encoded in Base64 {:?} based on sui.keystore file.",
                     file_name
                 );
                 key
@@ -210,7 +211,7 @@ fn make_key_files(
                 kp
             }
         };
-        write_keypair_to_file(&kp, &file_name)?;
+        write_keypair_to_file_in_base64(&kp, &file_name)?;
     }
     Ok(())
 }
@@ -249,7 +250,8 @@ impl SuiValidatorCommand {
 
                 let keypair: AuthorityKeyPair =
                     read_authority_keypair_from_file(protocol_key_file_name)?;
-                let account_keypair: SuiKeyPair = read_keypair_from_file(account_key_file_name)?;
+                let account_keypair: SuiKeyPair =
+                    read_keypair_from_file_as_base64(account_key_file_name)?;
                 let worker_keypair: NetworkKeyPair =
                     read_network_keypair_from_file(worker_key_file_name)?;
                 let network_keypair: NetworkKeyPair =

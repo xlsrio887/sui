@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use std::usize;
-use sui_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
+use sui_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file_as_base64};
 use sui_protocol_config::{Chain, SupportedProtocolVersions};
 use sui_storage::object_store::ObjectStoreConfig;
 use sui_types::base_types::{ObjectID, SuiAddress};
@@ -787,9 +787,10 @@ impl KeyPairWithPath {
     pub fn new_from_path(path: PathBuf) -> Self {
         let cell: OnceCell<Arc<SuiKeyPair>> = OnceCell::new();
         // OK to unwrap panic because authority should not start without all keypairs loaded.
-        cell.set(Arc::new(read_keypair_from_file(&path).unwrap_or_else(
-            |e| panic!("Invalid keypair file at path {:?}: {e}", &path),
-        )))
+        cell.set(Arc::new(
+            read_keypair_from_file_as_base64(&path)
+                .unwrap_or_else(|e| panic!("Invalid keypair file at path {:?}: {e}", &path)),
+        ))
         .expect("Failed to set keypair");
         Self {
             location: KeyPairLocation::File { path },
@@ -804,7 +805,7 @@ impl KeyPairWithPath {
                 KeyPairLocation::File { path } => {
                     // OK to unwrap panic because authority should not start without all keypairs loaded.
                     Arc::new(
-                        read_keypair_from_file(path).unwrap_or_else(|e| {
+                        read_keypair_from_file_as_base64(path).unwrap_or_else(|e| {
                             panic!("Invalid keypair file at path {:?}: {e}", path)
                         }),
                     )
@@ -891,7 +892,9 @@ mod tests {
 
     use fastcrypto::traits::KeyPair;
     use rand::{rngs::StdRng, SeedableRng};
-    use sui_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
+    use sui_keys::keypair_file::{
+        write_authority_keypair_to_file, write_keypair_to_file_in_base64,
+    };
     use sui_types::crypto::{get_key_pair_from_rng, AuthorityKeyPair, NetworkKeyPair, SuiKeyPair};
 
     use super::Genesis;
@@ -924,12 +927,12 @@ mod tests {
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
 
         write_authority_keypair_to_file(&protocol_key_pair, PathBuf::from("protocol.key")).unwrap();
-        write_keypair_to_file(
+        write_keypair_to_file_in_base64(
             &SuiKeyPair::Ed25519(worker_key_pair.copy()),
             PathBuf::from("worker.key"),
         )
         .unwrap();
-        write_keypair_to_file(
+        write_keypair_to_file_in_base64(
             &SuiKeyPair::Ed25519(network_key_pair.copy()),
             PathBuf::from("network.key"),
         )

@@ -19,7 +19,8 @@ use sui_types::{
 };
 
 use sui_keys::keypair_file::{
-    read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
+    read_authority_keypair_from_file, read_keypair_from_file_as_base64,
+    read_network_keypair_from_file,
 };
 
 use crate::genesis_inspector::examine_genesis_checkpoint;
@@ -129,7 +130,7 @@ pub fn run(cmd: Ceremony) -> Result<()> {
         } => {
             let mut builder = Builder::load(&dir)?;
             let keypair: AuthorityKeyPair = read_authority_keypair_from_file(validator_key_file)?;
-            let account_keypair: SuiKeyPair = read_keypair_from_file(account_key_file)?;
+            let account_keypair: SuiKeyPair = read_keypair_from_file_as_base64(account_key_file)?;
             let worker_keypair: NetworkKeyPair = read_network_keypair_from_file(worker_key_file)?;
             let network_keypair: NetworkKeyPair = read_network_keypair_from_file(network_key_file)?;
             let pop = generate_proof_of_possession(&keypair, (&account_keypair.public()).into());
@@ -264,7 +265,9 @@ mod test {
     use anyhow::Result;
     use sui_config::local_ip_utils;
     use sui_genesis_builder::validator_info::ValidatorInfo;
-    use sui_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
+    use sui_keys::keypair_file::{
+        write_authority_keypair_to_file, write_keypair_to_file_in_base64,
+    };
     use sui_types::crypto::{get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair, SuiKeyPair};
 
     #[test]
@@ -301,16 +304,25 @@ mod test {
                 write_authority_keypair_to_file(&keypair, &key_file).unwrap();
 
                 let worker_key_file = dir.path().join(format!("{}.key", info.name));
-                write_keypair_to_file(&SuiKeyPair::Ed25519(worker_keypair), &worker_key_file)
-                    .unwrap();
+                write_keypair_to_file_in_base64(
+                    &SuiKeyPair::Ed25519(worker_keypair),
+                    &worker_key_file,
+                )
+                .unwrap();
 
                 let network_key_file = dir.path().join(format!("{}-1.key", info.name));
-                write_keypair_to_file(&SuiKeyPair::Ed25519(network_keypair), &network_key_file)
-                    .unwrap();
+                write_keypair_to_file_in_base64(
+                    &SuiKeyPair::Ed25519(network_keypair),
+                    &network_key_file,
+                )
+                .unwrap();
 
                 let account_key_file = dir.path().join(format!("{}-2.key", info.name));
-                write_keypair_to_file(&SuiKeyPair::Ed25519(account_keypair), &account_key_file)
-                    .unwrap();
+                write_keypair_to_file_in_base64(
+                    &SuiKeyPair::Ed25519(account_keypair),
+                    &account_key_file,
+                )
+                .unwrap();
 
                 (
                     key_file,

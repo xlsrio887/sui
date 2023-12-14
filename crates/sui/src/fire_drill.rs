@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use sui_config::node::{AuthorityKeyPairWithPath, KeyPairWithPath};
 use sui_config::{local_ip_utils, Config, NodeConfig, PersistedConfig};
 use sui_json_rpc_types::{SuiExecutionStatus, SuiTransactionBlockResponseOptions};
-use sui_keys::keypair_file::read_keypair_from_file;
+use sui_keys::keypair_file::read_keypair_from_file_as_base64;
 use sui_sdk::{rpc_types::SuiTransactionBlockEffectsAPI, SuiClient, SuiClientBuilder};
 use sui_types::base_types::{ObjectRef, SuiAddress};
 use sui_types::crypto::{generate_proof_of_possession, get_key_pair, SuiKeyPair};
@@ -64,7 +64,7 @@ async fn run_metadata_rotation(metadata_rotation: MetadataRotation) -> anyhow::R
         account_key_path,
         fullnode_rpc_url,
     } = metadata_rotation;
-    let account_key = read_keypair_from_file(&account_key_path)?;
+    let account_key = read_keypair_from_file_as_base64(&account_key_path)?;
     let config: NodeConfig = PersistedConfig::read(&sui_node_config_path).map_err(|err| {
         err.context(format!(
             "Cannot open Sui Node Config file at {:?}",

@@ -353,7 +353,7 @@ impl TestTransactionBuilder {
     ) -> Transaction {
         let data = self.build();
         let intent = Intent::sui_transaction();
-        let intent_msg = IntentMessage::new(intent.clone(), data.clone());
+        let intent_msg = IntentMessage::new(intent, data.clone());
 
         let mut signatures = Vec::with_capacity(signers.len());
         for signer in signers {

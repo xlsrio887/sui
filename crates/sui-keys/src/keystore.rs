@@ -224,7 +224,7 @@ impl AccountKeystore for FileBasedKeystore {
             address,
             Alias {
                 alias,
-                public_key_base64: EncodeDecodeBase64::encode_base64(&keypair.public()),
+                public_key_base64: keypair.public().encode_base64(),
             },
         );
         self.keys.insert(address, keypair);
@@ -310,7 +310,17 @@ impl FileBasedKeystore {
             kp_strings
                 .iter()
                 .map(|kpstr| {
-                    let key = SuiKeyPair::decode_base64(kpstr);
+                    // try decoding as Base64 first, then try decode as Bech32.
+                    let key = match SuiKeyPair::decode_base64(kpstr) {
+                        Ok(kp) => Ok(kp),
+                        Err(_) => match SuiKeyPair::decode(kpstr) {
+                            Ok(kp) => Ok(kp),
+                            Err(_) => Err(anyhow!(
+                                "Invalid key format in keystore file: {}",
+                                path.display()
+                            )),
+                        },
+                    };
                     key.map(|k| (SuiAddress::from(&k.public()), k))
                 })
                 .collect::<Result<BTreeMap<_, _>, _>>()
@@ -360,8 +370,7 @@ impl FileBasedKeystore {
                 .iter()
                 .zip(names)
                 .map(|((sui_address, skp), alias)| {
-                    let public_key_base64 = EncodeDecodeBase64::encode_base64(&skp.public());
-
+                    let public_key_base64 = skp.public().encode_base64();
                     (
                         *sui_address,
                         Alias {
@@ -382,11 +391,14 @@ impl FileBasedKeystore {
             aliases
         };
 
-        Ok(Self {
+        let store = Self {
             keys,
             aliases,
             path: Some(path.to_path_buf()),
-        })
+        };
+        // force save keys using latest format
+        store.save_to_legacy_keystore()?;
+        Ok(store)
     }
 
     pub fn set_path(&mut self, path: &Path) {
@@ -412,12 +424,40 @@ impl FileBasedKeystore {
     }
 
     pub fn save_keystore(&self) -> Result<(), anyhow::Error> {
+        println!("ATTENTION: Your keys are now stored in a new format. READ BELOW:");
+        println!(
+            "All your keys are now represented in Bech32 with 33 bytes `flag || privkey` 
+        format with prefix `suiprivkey`, support for Base64 format in keystore and Hex format sui 
+        wallet is deprecated. Your private key remains unchanged, just in a more friendly and less 
+        error prone format. If you wish to convert vice versa, see `sui keytool convert -h` and 
+        `sui keytool save -h`for details"
+        );
+
+        if let Some(path) = &self.path {
+            let encoded_keys: Vec<_> = self.keys.iter().try_fold(vec![], |mut acc, (_, skp)| {
+                skp.encode()
+                    .map_err(|_| anyhow!("Failed to encode key"))
+                    .map(|encoded| {
+                        acc.push(encoded);
+                        acc
+                    })
+            })?;
+            let store = serde_json::to_string_pretty(&encoded_keys).with_context(|| {
+                format!("Cannot serialize keystore to file: {}", path.display())
+            })?;
+            fs::write(path, store)?;
+        }
+        Ok(())
+    }
+    pub fn save_to_legacy_keystore(&self) -> Result<(), anyhow::Error> {
+        println!("Saving to legacy Base64 encoded keystore, this format is deprecated starting sui 1.16.0, 
+        please use `sui keytool save` to convert to latest sui.keystore");
         if let Some(path) = &self.path {
             let store = serde_json::to_string_pretty(
                 &self
                     .keys
                     .values()
-                    .map(EncodeDecodeBase64::encode_base64)
+                    .map(|k| k.encode_base64())
                     .collect::<Vec<_>>(),
             )
             .with_context(|| format!("Cannot serialize keystore to file: {}", path.display()))?;
@@ -481,7 +521,7 @@ impl AccountKeystore for InMemKeystore {
             )
         });
 
-        let public_key_base64 = EncodeDecodeBase64::encode_base64(&keypair.public());
+        let public_key_base64 = keypair.public().encode_base64();
         let alias = Alias {
             alias,
             public_key_base64,
@@ -565,7 +605,7 @@ impl InMemKeystore {
             .iter()
             .zip(random_names(HashSet::new(), keys.len()))
             .map(|((sui_address, skp), alias)| {
-                let public_key_base64 = EncodeDecodeBase64::encode_base64(&skp.public());
+                let public_key_base64 = skp.public().encode_base64();
                 (
                     *sui_address,
                     Alias {
