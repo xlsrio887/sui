@@ -162,6 +162,7 @@ impl ServerBuilder {
 
         let app = axum::Router::new()
             .route("/", axum::routing::get(graphiql).post(graphql_handler))
+            .route("/graphql", axum::routing::get(graphiql).post(graphql_handler))
             .route("/schema", axum::routing::get(get_schema))
             .route("/health", axum::routing::get(health_checks))
             .layer(axum::extract::Extension(schema))
