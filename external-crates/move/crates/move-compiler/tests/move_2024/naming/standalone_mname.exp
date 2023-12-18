@@ -2,5 +2,5 @@ error[E03006]: unexpected name in this position
   ┌─ tests/move_2024/naming/standalone_mname.move:3:17
   │
 3 │         let m = M; m;
-  │                 ^ Unexpected address. An address identifier is not a valid module
+  │                 ^ Unexpected address. An address identifier is not a valid expression
 

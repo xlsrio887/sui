@@ -47,7 +47,7 @@ module 0x42::t {
     use fun evaluate as vector.evaluate;
 
     public fun test() {
-        let input = vector[Exp::Done { }, Exp::Add { }, Exp::Num(5), Exp::Num(5)];
+        let input = vector[Exp::Done, Exp::Add, Exp::Num(5), Exp::Num(5)];
         assert!(input.evaluate() == 10, 0);
     }
 
