@@ -182,7 +182,7 @@ function enumKind<T extends object, Input extends object>(type: BcsType<T, Input
 const Address = bcs.bytes(SUI_ADDRESS_LENGTH).transform({
 	validate: (val) => {
 		const address = typeof val === 'string' ? val : toHEX(val);
-		if (!isValidSuiAddress(typeof val === 'string' ? val : toHEX(val))) {
+		if (!isValidSuiAddress(address)) {
 			throw new Error(`Invalid Sui address ${address}`);
 		}
 	},
