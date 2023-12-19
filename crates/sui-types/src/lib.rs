@@ -128,7 +128,7 @@ pub const SUI_RANDOMNESS_STATE_ADDRESS: AccountAddress = address_from_single_byt
 pub const SUI_RANDOMNESS_STATE_OBJECT_ID: ObjectID =
     ObjectID::from_address(SUI_RANDOMNESS_STATE_ADDRESS);
 
-/// 0x8: hardcode object ID for the singleton bridge object.
+/// 0x9: hardcode object ID for the singleton bridge object.
 pub const SUI_BRIDGE_ADDRESS: AccountAddress = address_from_single_byte(9);
 pub const SUI_BRIDGE_OBJECT_ID: ObjectID = ObjectID::from_address(SUI_BRIDGE_ADDRESS);
 

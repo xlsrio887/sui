@@ -1041,7 +1041,7 @@ impl ProtocolConfig {
     pub fn bridge(&self) -> bool {
         let ret = self.feature_flags.bridge;
         if ret {
-            // jwk updates required end-of-epoch transactions
+            // bridge required end-of-epoch transactions
             assert!(self.feature_flags.end_of_epoch_transaction_supported);
         }
         ret
