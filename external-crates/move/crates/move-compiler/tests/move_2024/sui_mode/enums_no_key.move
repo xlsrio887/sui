@@ -1,6 +1,6 @@
 module a::m {
-    use sui::object::UID;
+
     public enum S has key {
-        N { id: UID }
+        N { id: u64 }
     }
 }
