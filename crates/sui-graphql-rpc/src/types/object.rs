@@ -8,7 +8,7 @@ use sui_json_rpc::name_service::NameServiceConfig;
 use sui_types::dynamic_field::DynamicFieldType;
 
 use super::big_int::BigInt;
-use super::dynamic_field::{DynamicField, DynamicFieldName};
+use super::dynamic_field::{DynamicField, DynamicFieldFilter, DynamicFieldName};
 use super::move_object::MoveObject;
 use super::move_package::MovePackage;
 use super::{
@@ -297,9 +297,10 @@ impl Object {
         after: Option<String>,
         last: Option<u64>,
         before: Option<String>,
+        filter: Option<DynamicFieldFilter>,
     ) -> Result<Option<Connection<String, DynamicField>>> {
         ctx.data_unchecked::<PgManager>()
-            .fetch_dynamic_fields(first, after, last, before, self.address)
+            .fetch_dynamic_fields(first, after, last, before, self.address, filter)
             .await
             .extend()
     }
