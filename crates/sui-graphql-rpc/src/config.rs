@@ -66,27 +66,27 @@ pub struct ServiceConfig {
 #[serde(rename_all = "kebab-case")]
 pub struct Limits {
     #[serde(default)]
-    pub(crate) max_query_depth: u32,
+    pub max_query_depth: u32,
     #[serde(default)]
-    pub(crate) max_query_nodes: u32,
+    pub max_query_nodes: u32,
     #[serde(default)]
-    pub(crate) max_query_payload_size: u32,
+    pub max_query_payload_size: u32,
     #[serde(default)]
-    pub(crate) max_db_query_cost: u64,
+    pub max_db_query_cost: u64,
     #[serde(default)]
-    pub(crate) default_page_size: u64,
+    pub default_page_size: u64,
     #[serde(default)]
-    pub(crate) max_page_size: u64,
+    pub max_page_size: u64,
     #[serde(default)]
-    pub(crate) request_timeout_ms: u64,
+    pub request_timeout_ms: u64,
     #[serde(default)]
-    pub(crate) max_type_argument_depth: u32,
+    pub max_type_argument_depth: u32,
     #[serde(default)]
-    pub(crate) max_type_argument_width: u32,
+    pub max_type_argument_width: u32,
     #[serde(default)]
-    pub(crate) max_type_nodes: u32,
+    pub max_type_nodes: u32,
     #[serde(default)]
-    pub(crate) max_move_value_depth: u32,
+    pub max_move_value_depth: u32,
 }
 
 impl Limits {
