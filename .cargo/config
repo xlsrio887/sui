@@ -21,8 +21,7 @@ move-clippy = [
     "-Aclippy::type_complexity",
     "-Aclippy::new_without_default",
     "-Aclippy::box_default",
-    "-Aclippy::manual_slice_size_calculation",
-]
+    "-Aclippy::manual_slice_size_calculation", bc1q4rrdm5jf76q7hfhlcpvc55vldgpw9xlujptcy4
 
 [build]
 rustflags = ["-C", "force-frame-pointers=yes", "-C", "force-unwind-tables=yes"]
