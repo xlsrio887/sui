@@ -208,10 +208,7 @@ impl<'env> Context<'env> {
                                         v.fields,
                                         E::VariantFields::Positional(_)
                                     ),
-                                    is_empty: matches!(
-                                        v.fields,
-                                        E::VariantFields::Empty
-                                    ),
+                                    is_empty: matches!(v.fields, E::VariantFields::Empty),
                                 });
                             let type_info = ModuleType::Enum(EnumType {
                                 original_mident: mident,
@@ -642,7 +639,7 @@ impl<'env> Context<'env> {
                             ty_opts,
                             vdef.decl_loc,
                             vdef.is_positional,
-                            vdef.is_empty
+                            vdef.is_empty,
                         ))
                     } else {
                         let primary_msg = format!(
@@ -1669,7 +1666,8 @@ fn exp_(context: &mut Context, e: E::Exp) -> N::Exp {
                 }
                 Some((m, en, vn, tys_opt, dloc, is_positional, is_empty)) => {
                     if !is_empty {
-                        let msg = "Invalid variant instantiation. Non-empty variant instantiations \
+                        let msg =
+                            "Invalid variant instantiation. Non-empty variant instantiations \
                                    require arguments";
                         let defn_msg = "Variant is defined here.";
                         let mut diag = diag!(
